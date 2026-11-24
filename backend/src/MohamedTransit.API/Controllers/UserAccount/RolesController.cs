@@ -43,7 +43,13 @@ public class RolesController : BaseController
         if (result.IsError)
             return HandleErrorResponse(result.Errors);
 
-        var roleDetail = result.Payload?.Adapt<RoleDto>();
+        var roleDetail = result.Payload is null
+            ? null
+            : new RoleDto
+            {
+                Id = result.Payload.Id,
+                RoleName = result.Payload.Name
+            };
         return HandleSuccessResponse(roleDetail);
     }
 
@@ -62,7 +68,13 @@ public class RolesController : BaseController
         if (result.IsError)
             return HandleErrorResponse(result.Errors);
 
-        var roleDetail = result.Payload?.Adapt<RoleDto>();
+        var roleDetail = result.Payload is null
+            ? null
+            : new RoleDto
+            {
+                Id = result.Payload.Id,
+                RoleName = result.Payload.Name
+            };
         return HandleSuccessResponse(roleDetail);
     }
 
@@ -97,7 +109,13 @@ public class RolesController : BaseController
         if (result.IsError)
             return HandleErrorResponse(result.Errors);
 
-        var rolesList = result.Payload?.Adapt<List<RoleDto>>();
+        var rolesList = result.Payload?
+            .Select(role => new RoleDto
+            {
+                Id = role.Id,
+                RoleName = role.Name
+            })
+            .ToList();
         return HandleSuccessResponse(rolesList);
     }
 
@@ -119,7 +137,11 @@ public class RolesController : BaseController
         if (result.IsError)
             return HandleErrorResponse(result.Errors);
 
-        var roleResult = result.Payload.Adapt<RoleDto>();
+        var roleResult = new RoleDto
+        {
+            Id = result.Payload.Id,
+            RoleName = result.Payload.Name
+        };
         var privilegeList = new List<PrivilegeDto>();
 
         if (result.Payload.RolePrivileges != null)

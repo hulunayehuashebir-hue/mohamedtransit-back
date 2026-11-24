@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 
 using MediatR;
+using Microsoft.AspNetCore.Hosting;
 
 using MohamedTransit.Application.Helper;
 using MohamedTransit.Domain.Data;
@@ -11,10 +12,14 @@ internal class DownloadStageDocumentQueryHandler
     : IRequestHandler<DownloadStageDocumentQuery, OperationResult<StageDocument>>
 {
     private readonly ApplicationDbContext _context;
+    private readonly IWebHostEnvironment _environment;
 
-    public DownloadStageDocumentQueryHandler(ApplicationDbContext context)
+    public DownloadStageDocumentQueryHandler(
+        ApplicationDbContext context,
+        IWebHostEnvironment environment)
     {
         _context = context;
+        _environment = environment;
     }
 
     public async Task<OperationResult<StageDocument>> Handle(
@@ -35,7 +40,7 @@ internal class DownloadStageDocumentQueryHandler
         }
 
         // Verify file exists on disk
-        if (string.IsNullOrEmpty(document.FilePath) || !File.Exists(document.FilePath))
+        if (string.IsNullOrEmpty(document.FilePath) || ResolveDocumentPath(document.FilePath) == null)
         {
             result.AddError(ErrorCode.NotFound, "File not found on server");
             return result;
@@ -45,5 +50,21 @@ internal class DownloadStageDocumentQueryHandler
         result.Message = "Document ready for download";
 
         return result;
+    }
+
+    private string? ResolveDocumentPath(string filePath)
+    {
+        if (Path.IsPathRooted(filePath))
+            return File.Exists(filePath) ? filePath : null;
+
+        var webRoot = _environment.WebRootPath ??
+            Path.Combine(_environment.ContentRootPath, "wwwroot");
+        var candidates = new[]
+        {
+            Path.Combine(webRoot, filePath),
+            Path.Combine(_environment.ContentRootPath, filePath)
+        };
+
+        return candidates.FirstOrDefault(File.Exists);
     }
 }

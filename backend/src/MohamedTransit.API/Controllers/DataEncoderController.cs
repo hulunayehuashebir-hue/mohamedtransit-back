@@ -296,10 +296,7 @@ public class DataEncoderController : BaseController
         service.SetCreatedByDataEncoder(currentUserId.Value);
         service.AssignmentNotes = request.Notes?.Trim();
 
-        foreach (var stage in DefaultServiceWorkflowStages.CreateFor(service, serviceType.Value))
-        {
-            service.AddStage(stage);
-        }
+        AddDefaultServiceWorkflowStages(service, serviceType.Value);
 
         _context.Shipments.Add(service);
         await _context.SaveChangesAsync(cancellationToken);
@@ -361,7 +358,9 @@ public class DataEncoderController : BaseController
                                  stageIds.Contains(transport.ServiceStageId.Value),
                     cancellationToken));
             var hasProgress = existingStages.Any(stage =>
-                stage.Status != (stage.SequenceOrder == 1 ? StageStatus.InProgress : StageStatus.NotStarted));
+                stage.Status != (stage.Stage == ShipmentStage.PrepaymentInvoice
+                    ? StageStatus.InProgress
+                    : StageStatus.NotStarted));
 
             if (hasStageData || hasProgress)
                 return Conflict("The service type cannot be changed after workflow stage activity has started.");
@@ -372,10 +371,7 @@ public class DataEncoderController : BaseController
         service.UpdateServiceType(request.ServiceType);
         if (serviceTypeChanged)
         {
-            foreach (var stage in DefaultServiceWorkflowStages.CreateFor(service, request.ServiceType))
-            {
-                service.AddStage(stage);
-            }
+            AddDefaultServiceWorkflowStages(service, request.ServiceType);
         }
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -467,10 +463,7 @@ public class DataEncoderController : BaseController
         if (!stagesExist)
         {
             var serviceType = service.ServiceType ?? ServiceType.Multimodal;
-            foreach (var stage in DefaultServiceWorkflowStages.CreateFor(service, serviceType))
-            {
-                service.AddStage(stage);
-            }
+            AddDefaultServiceWorkflowStages(service, serviceType);
         }
 
         service.Submit();
@@ -705,6 +698,24 @@ public class DataEncoderController : BaseController
             .ToListAsync(cancellationToken);
 
         return HandleSuccessResponse(dashboard);
+    }
+
+    private static void AddDefaultServiceWorkflowStages(Shipment service, ServiceType serviceType)
+    {
+        var workflowStages = Enum.GetValues<ShipmentStage>()
+            .Where(stage =>
+                serviceType != ServiceType.Multimodal ||
+                stage is not (ShipmentStage.LocalPermission or ShipmentStage.Arrival));
+
+        foreach (var stage in workflowStages)
+        {
+            var execution = ServiceStageExecution.Create(service.Id, stage);
+            execution.Shipment = service;
+            if (stage == ShipmentStage.PrepaymentInvoice)
+                execution.UpdateStatus(StageStatus.InProgress);
+
+            service.Stages.Add(execution);
+        }
     }
 
     private async Task<bool> IsDataEncoder(long userId, CancellationToken cancellationToken)

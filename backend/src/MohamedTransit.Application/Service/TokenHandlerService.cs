@@ -37,20 +37,9 @@ public class TokenHandlerService
 
     public bool ValidateToken(string token)
     {
-        var validations = new TokenValidationParameters
-        {
-            ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(_key),
-            ValidateIssuer = true,
-            ValidIssuer = _jwtSettings.Issuer,
-            ValidateAudience = true,
-            ValidAudience = "MohamedTransitApp",
-            ClockSkew = TimeSpan.Zero
-        };
-
         try
         {
-            TokenHandler.ValidateToken(token, validations, out SecurityToken securityToken);
+            TokenHandler.ValidateToken(token, GetTokenValidationParameters(), out SecurityToken securityToken);
             return securityToken.ValidTo > DateTime.UtcNow;
         }
         catch (Exception)
@@ -58,6 +47,20 @@ public class TokenHandlerService
             return false;
         }
     }
+
+    private TokenValidationParameters GetTokenValidationParameters() =>
+        new()
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(_key),
+            ValidateIssuer = true,
+            ValidIssuer = _jwtSettings.Issuer,
+            ValidateAudience = true,
+            ValidAudience = "MohamedTransitApp",
+            ValidateLifetime = true,
+            RequireExpirationTime = true,
+            ClockSkew = TimeSpan.Zero
+        };
 
     public List<Claim> GetClaims(string token)
     {
@@ -76,12 +79,14 @@ public class TokenHandlerService
     {
         var symmetricSecurityKey = new SymmetricSecurityKey(_key);
         var signingCredentials = new SigningCredentials(symmetricSecurityKey, SecurityAlgorithms.HmacSha256);
+        var issuedAt = DateTime.UtcNow;
 
         return new JwtSecurityToken(
             issuer: _jwtSettings.Issuer,
             audience: "MohamedTransitApp",
             claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(accessTokenLifetime),
+            notBefore: issuedAt,
+            expires: issuedAt.AddMinutes(accessTokenLifetime),
             signingCredentials: signingCredentials
         );
     }

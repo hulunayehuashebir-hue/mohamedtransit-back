@@ -1,104 +1,107 @@
-﻿using System.Text.Json;
-
+﻿using System.Security.Cryptography;
+using System.Text;
+using System.Text.RegularExpressions;
 using MediatR;
-
-using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-
 using MohamedTransit.Application.Helper;
 using MohamedTransit.Application.Service;
-using MohamedTransit.Domain.Common;
 using MohamedTransit.Domain.Data;
-using MohamedTransit.Domain.Entities;
 
 namespace MohamedTransit.Application.Commands.UserAccount;
 
-public record ResetPasswordCommand(string UserName, string Password) : IRequest<OperationResult<Unit>>;
+public record ResetPasswordCommand(string Email, string Code, string NewPassword)
+    : IRequest<OperationResult<Unit>>;
 
 internal class ResetPasswordCommandHandler : IRequestHandler<ResetPasswordCommand, OperationResult<Unit>>
 {
+    private const int MaximumPasswordResetAttempts = 5;
+
     private readonly ApplicationDbContext _context;
     private readonly PasswordService _passwordService;
-    private readonly TokenHandlerService _tokenService;
-    private readonly IHttpContextAccessor _httpContextAccessor;
 
     public ResetPasswordCommandHandler(
         ApplicationDbContext context,
-        PasswordService passwordService,
-        TokenHandlerService tokenService,
-        IHttpContextAccessor httpContextAccessor)
+        PasswordService passwordService)
     {
         _context = context;
-        _tokenService = tokenService;
-        _httpContextAccessor = httpContextAccessor;
         _passwordService = passwordService;
     }
 
     public async Task<OperationResult<Unit>> Handle(ResetPasswordCommand request, CancellationToken cancellationToken)
     {
         var result = new OperationResult<Unit>();
-        var userName = GetCurrentUserName();
-
-        long userId = 0;
-        if (!string.IsNullOrEmpty(userName))
+        var email = request.Email?.Trim();
+        var code = request.Code?.Trim();
+        if (string.IsNullOrWhiteSpace(email)
+            || string.IsNullOrWhiteSpace(code)
+            || string.IsNullOrWhiteSpace(request.NewPassword))
         {
-            var existingUser = await _context.Users
-                .FirstOrDefaultAsync(x => x.Username == userName, cancellationToken);
-
-            if (existingUser != null)
-            {
-                userId = existingUser.Id;
-            }
-        }
-
-        try
-        {
-            var userAccount = await _context.Users
-                .FirstOrDefaultAsync(x => x.Username == request.UserName, cancellationToken);
-
-            if (userAccount is null)
-            {
-                result.AddError(ErrorCode.NotFound, "Account Does not Exist");
-                return result;
-            }
-
-            var hashedPassword = _passwordService.HashPassword(request.Password);
-            userAccount.UpdatePassword(hashedPassword);
-
-            _context.Users.Update(userAccount);
-            await _context.SaveChangesAsync(cancellationToken);
-
-            result.Message = "Operation success";
-            result.Payload = Unit.Value;
-
-            var options = new JsonSerializerOptions
-            {
-                ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.Preserve,
-                WriteIndented = true
-            };
-
+            result.AddError(ErrorCode.UnknownError, "Email, code, and new password are required.");
             return result;
         }
-        catch (Exception ex)
+
+        if (!Regex.IsMatch(code, @"^\d{6}$", RegexOptions.CultureInvariant))
         {
-            result.AddError(ErrorCode.ServerError, ex.Message);
+            result.AddError(ErrorCode.UnAuthorized, "Invalid or expired reset code");
+            return result;
         }
 
+        var userAccount = await _context.Users
+            .FirstOrDefaultAsync(x => x.Email.ToLower() == email.ToLower(), cancellationToken);
+
+        if (userAccount is null)
+        {
+            result.AddError(ErrorCode.UnAuthorized, "Invalid or expired reset code");
+            return result;
+        }
+
+        var now = DateTime.UtcNow;
+        if (string.IsNullOrWhiteSpace(userAccount.PasswordResetCodeHash)
+            || userAccount.PasswordResetCodeExpiresAt is null
+            || userAccount.PasswordResetCodeExpiresAt <= now
+            || userAccount.PasswordResetAttempts >= MaximumPasswordResetAttempts)
+        {
+            userAccount.ClearPasswordResetCode();
+            await _context.SaveChangesAsync(cancellationToken);
+            result.AddError(ErrorCode.UnAuthorized, "Invalid or expired reset code");
+            return result;
+        }
+
+        var submittedHash = SHA256.HashData(Encoding.UTF8.GetBytes(code));
+        byte[] storedHash;
+        try
+        {
+            storedHash = Convert.FromHexString(userAccount.PasswordResetCodeHash);
+        }
+        catch (FormatException)
+        {
+            userAccount.ClearPasswordResetCode();
+            await _context.SaveChangesAsync(cancellationToken);
+            result.AddError(ErrorCode.UnAuthorized, "Invalid or expired reset code");
+            return result;
+        }
+
+        if (storedHash.Length != submittedHash.Length
+            || !CryptographicOperations.FixedTimeEquals(storedHash, submittedHash))
+        {
+            userAccount.RecordFailedPasswordResetAttempt();
+            if (userAccount.PasswordResetAttempts >= MaximumPasswordResetAttempts)
+            {
+                userAccount.ClearPasswordResetCode();
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+            result.AddError(ErrorCode.UnAuthorized, "Invalid or expired reset code");
+            return result;
+        }
+
+        var hashedPassword = _passwordService.HashPassword(request.NewPassword);
+        userAccount.UpdatePassword(hashedPassword);
+        userAccount.ClearPasswordResetCode();
+        await _context.SaveChangesAsync(cancellationToken);
+
+        result.Message = "Operation success";
+        result.Payload = Unit.Value;
         return result;
-    }
-
-    private string? GetCurrentUserName()
-    {
-        var authorizationHeader = _httpContextAccessor.HttpContext?.Request.Headers["Authorization"].ToString();
-        if (string.IsNullOrEmpty(authorizationHeader) || !authorizationHeader.StartsWith("Bearer "))
-        {
-            return null;
-        }
-
-        var token = authorizationHeader.Substring("Bearer ".Length).Trim();
-        var claims = _tokenService.GetClaims(token);
-
-        var userNameClaim = claims?.FirstOrDefault(c => c.Type == "userName");
-        return userNameClaim?.Value;
     }
 }

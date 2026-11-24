@@ -27,12 +27,17 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 // 4.b Email settings validation - fail fast if sender is not configured
 // Bind the Settings object to the top-level "Settings" configuration section
 // because appsettings.json nests EmailSettings inside "Settings".
+var requireEmailPassword = !builder.Environment.IsDevelopment();
 builder.Services.AddOptions<Settings>()
     .Bind(builder.Configuration.GetSection("Settings"))
     .Validate(s => s != null
                    && s.EmailSettings != null
-                   && !string.IsNullOrWhiteSpace(s.EmailSettings.Sender),
-              "EmailSettings.EmailSettings.Sender must be configured")
+                       && !string.IsNullOrWhiteSpace(s.EmailSettings.MailServer)
+                       && s.EmailSettings.MailPort is > 0 and <= 65535
+                   && !string.IsNullOrWhiteSpace(s.EmailSettings.SenderName)
+                       && !string.IsNullOrWhiteSpace(s.EmailSettings.Sender)
+                       && (!requireEmailPassword || !string.IsNullOrWhiteSpace(s.EmailSettings.Password)),
+                  "Settings:EmailSettings must include SMTP host, port, sender name, sender, and password.")
     .ValidateOnStart();
 
 // 1. Controllers & Global Filters
@@ -127,7 +132,8 @@ builder.Services.AddCors(options =>
                 "http://localhost:5002",
                 "https://localhost:5002",
                 "http://localhost:8081",
-                "http://10.0.2.2:7236"
+                "http://10.0.2.2:7236",
+                "https://mame-transit.lovable.app"
             )
             .AllowAnyHeader()
             .AllowAnyMethod()
@@ -143,6 +149,7 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     db.Database.Migrate();
+    await CustomerRoleSeeder.SeedAsync(db);
     AdminPrivilegeSeeder.Seed(scope.ServiceProvider);
     if (app.Environment.IsDevelopment())
     {

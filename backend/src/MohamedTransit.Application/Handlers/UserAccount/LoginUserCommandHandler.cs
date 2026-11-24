@@ -122,6 +122,8 @@ internal class LoginUserCommandHandler : IRequestHandler<LoginUserCommand, Opera
         {
             foreach (var role in user.Roles)
             {
+                result.Add(new Claim(ClaimTypes.Role, role.RoleName));
+
                 if (role.Privileges != null)
                 {
                     foreach (var userPrivilege in role.Privileges)

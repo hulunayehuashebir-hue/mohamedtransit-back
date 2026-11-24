@@ -4,6 +4,7 @@ public class Settings
 {
     public EmailSettings EmailSettings { get; set; } = new();
     public AzureStorageConfig AzureStorageConfig { get; set; } = new();
+    public string FrontendBaseUrl { get; set; } = "http://localhost:3000";
 }
 
 public class EmailSettings

@@ -23,4 +23,6 @@ public class UploadDocumentCommand : IRequest<OperationResult<StageDocument>>
     public string? Description { get; set; }
 
     public string? FilePath { get; set; }
+
+    public long? UploadedByUserId { get; set; }
 }

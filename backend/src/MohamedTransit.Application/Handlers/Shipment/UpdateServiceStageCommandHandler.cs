@@ -45,7 +45,7 @@ internal class UpdateServiceStageCommandHandler : IRequestHandler<UpdateServiceS
         }
 
         // 3. Status እና Comments/Notes ማሻሻል (የ Entityው UpdateStatus method በመጠቀም)
-        stageExecution.UpdateStatus(request.Status, request.Notes);
+        stageExecution.UpdateStatus(request.Status, request.Notes, request.UpdatedByUserId);
 
         // 4. ለውጦችን Save ማድረግ
         await _context.SaveChangesAsync(cancellationToken);

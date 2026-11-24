@@ -19,6 +19,12 @@ public class User
 
     public string Password { get; private set; } = string.Empty;
 
+    public string? PasswordResetCodeHash { get; private set; }
+
+    public DateTime? PasswordResetCodeExpiresAt { get; private set; }
+
+    public int PasswordResetAttempts { get; private set; }
+
     public bool IsSuperAdmin { get; private set; }
 
     public bool IsAccountLocked { get; private set; }
@@ -74,6 +80,26 @@ public class User
     public void UpdatePassword(string password)
     {
         Password = password;
+    }
+
+    public void SetPasswordResetCode(string codeHash, DateTime expiresAtUtc)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(codeHash);
+        PasswordResetCodeHash = codeHash;
+        PasswordResetCodeExpiresAt = expiresAtUtc;
+        PasswordResetAttempts = 0;
+    }
+
+    public void RecordFailedPasswordResetAttempt()
+    {
+        PasswordResetAttempts++;
+    }
+
+    public void ClearPasswordResetCode()
+    {
+        PasswordResetCodeHash = null;
+        PasswordResetCodeExpiresAt = null;
+        PasswordResetAttempts = 0;
     }
 
     public void AddRole(UserRole role)

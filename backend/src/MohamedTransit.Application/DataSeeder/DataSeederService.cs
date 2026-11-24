@@ -183,7 +183,7 @@ public class DataSeederService : IDataSeederService
             // Assessor
             User.CreateUser(
                 "assessor",
-                "assessor@Mohamedtransit.com",
+                "hulunayehuashebir@gmail.com",
                 "Hulu",
                 "Assessor",
                 "",

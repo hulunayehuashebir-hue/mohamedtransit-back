@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 
 using MediatR;
 
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 
 using MohamedTransit.Application.Helper;
@@ -20,10 +21,14 @@ internal class DownloadMultipleStageDocumentsQueryHandler
     : IRequestHandler<DownloadMultipleStageDocumentsQuery, OperationResult<byte[]>>
 {
     private readonly ApplicationDbContext _context;
+    private readonly IWebHostEnvironment _environment;
 
-    public DownloadMultipleStageDocumentsQueryHandler(ApplicationDbContext context)
+    public DownloadMultipleStageDocumentsQueryHandler(
+        ApplicationDbContext context,
+        IWebHostEnvironment environment)
     {
         _context = context;
+        _environment = environment;
     }
 
     public async Task<OperationResult<byte[]>> Handle(
@@ -59,12 +64,15 @@ internal class DownloadMultipleStageDocumentsQueryHandler
             {
                 foreach (var doc in documents)
                 {
-                    if (string.IsNullOrEmpty(doc.FilePath) || !File.Exists(doc.FilePath))
+                    var filePath = string.IsNullOrEmpty(doc.FilePath)
+                        ? null
+                        : ResolveDocumentPath(doc.FilePath);
+                    if (filePath == null)
                         continue;
 
-                    var entry = zip.CreateEntry(doc.FileName ?? Path.GetFileName(doc.FilePath));
+                    var entry = zip.CreateEntry(doc.FileName ?? Path.GetFileName(filePath));
                     using var entryStream = entry.Open();
-                    using var fileStream = File.OpenRead(doc.FilePath);
+                    using var fileStream = File.OpenRead(filePath);
 
                     await fileStream.CopyToAsync(entryStream, cancellationToken);
                     addedFilesCount++;
@@ -85,5 +93,21 @@ internal class DownloadMultipleStageDocumentsQueryHandler
             result.AddError(ErrorCode.ServerError, ex.Message);
             return result;
         }
+    }
+
+    private string? ResolveDocumentPath(string filePath)
+    {
+        if (Path.IsPathRooted(filePath))
+            return File.Exists(filePath) ? filePath : null;
+
+        var webRoot = _environment.WebRootPath ??
+            Path.Combine(_environment.ContentRootPath, "wwwroot");
+        var candidates = new[]
+        {
+            Path.Combine(webRoot, filePath),
+            Path.Combine(_environment.ContentRootPath, filePath)
+        };
+
+        return candidates.FirstOrDefault(File.Exists);
     }
 }

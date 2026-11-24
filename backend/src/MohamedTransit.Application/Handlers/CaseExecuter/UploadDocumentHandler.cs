@@ -34,18 +34,26 @@ namespace MohamedTransit.Application.Handlers
 
             try
             {
-                long userId = 0;
+                long userId = request.UploadedByUserId ?? 0;
 
-                // Get current logged-in user ID (optional)
-                var userName = GetCurrentUserName() ?? string.Empty;
-                if (!string.IsNullOrWhiteSpace(userName))
+                if (userId <= 0)
                 {
-                    var existingUser = await _context.Users
-                        .AsNoTracking()
-                        .FirstOrDefaultAsync(u => u.Username == userName, cancellationToken);
+                    var userName = GetCurrentUserName() ?? string.Empty;
+                    if (!string.IsNullOrWhiteSpace(userName))
+                    {
+                        var existingUser = await _context.Users
+                            .AsNoTracking()
+                            .FirstOrDefaultAsync(u => u.Username == userName, cancellationToken);
 
-                    if (existingUser != null)
-                        userId = existingUser.Id;
+                        if (existingUser != null)
+                            userId = existingUser.Id;
+                    }
+                }
+
+                if (userId <= 0)
+                {
+                    result.AddError(ErrorCode.ValidationError, "An authenticated uploader is required.");
+                    return result;
                 }
 
                 // Validate ShipmentStage exists
@@ -68,7 +76,8 @@ namespace MohamedTransit.Application.Handlers
                 var uploadsFolder = Path.Combine("Uploads", DateTime.UtcNow.ToString("yyyyMMdd"));
                 Directory.CreateDirectory(uploadsFolder);
 
-                var uniqueFileName = $"{Guid.NewGuid()}_{request.File.FileName}";
+                var originalFileName = Path.GetFileName(request.File.FileName);
+                var uniqueFileName = $"{Guid.NewGuid()}_{originalFileName}";
                 var filePath = Path.Combine(uploadsFolder, uniqueFileName);
 
                 using (var stream = new FileStream(filePath, FileMode.Create))
@@ -80,8 +89,8 @@ namespace MohamedTransit.Application.Handlers
                 var document = StageDocument.Create(
                     fileName: uniqueFileName,
                     filePath: filePath,
-                    originalFileName: request.File.FileName,
-                    fileExtension: Path.GetExtension(request.File.FileName),
+                    originalFileName: originalFileName,
+                    fileExtension: Path.GetExtension(originalFileName),
                     fileSizeBytes: request.File.Length,
                     mimeType: request.File.ContentType,
                     documentType: request.DocumentType,

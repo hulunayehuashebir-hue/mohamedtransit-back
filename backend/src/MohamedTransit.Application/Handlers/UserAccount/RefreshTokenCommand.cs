@@ -132,6 +132,8 @@ internal class RefreshTokenCommandHandler : IRequestHandler<RefreshTokenCommand,
         {
             foreach (var role in user.Roles)
             {
+                result.Add(new Claim(ClaimTypes.Role, role.RoleName));
+
                 if (role.Privileges == null) continue;
 
                 foreach (var clientClaim in role.Privileges)

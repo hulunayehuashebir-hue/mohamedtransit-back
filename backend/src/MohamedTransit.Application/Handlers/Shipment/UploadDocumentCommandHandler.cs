@@ -43,6 +43,12 @@ internal class UploadDocumentCommandHandler : IRequestHandler<UploadDocumentComm
             return result;
         }
 
+        if (!request.UploadedByUserId.HasValue || request.UploadedByUserId.Value <= 0)
+        {
+            result.AddError(ErrorCode.ValidationError, "An authenticated uploader is required.");
+            return result;
+        }
+
         // 3. File ዝርዝሮች (Path, Extension, MimeType, Unique Name) ማዘጋጀት
         var originalFileName = Path.GetFileName(request.File.FileName);
         var fileExtension = Path.GetExtension(originalFileName);
@@ -64,10 +70,6 @@ internal class UploadDocumentCommandHandler : IRequestHandler<UploadDocumentComm
 
         var relativePath = Path.Combine("uploads", "documents", uniqueFileName).Replace("\\", "/");
 
-        // 5. StageDocument.Create Factory Method በመጠቀም Entity መፍጠር
-        // (ማስታወሻ፡ Current User ID ከ Context ካለሽ 'uploadedByUserId' ቦታ ላይ ተቀቀሚው)
-        long currentUserId = 1; // TODO: Replace with actual CurrentUser/Session Service User ID
-
         var document = StageDocument.Create(
             fileName: uniqueFileName,
             filePath: request.FilePath ?? relativePath,
@@ -77,7 +79,7 @@ internal class UploadDocumentCommandHandler : IRequestHandler<UploadDocumentComm
             mimeType: request.File.ContentType,
             documentType: request.DocumentType,
             serviceStageId: request.StageId,
-            uploadedByUserId: currentUserId,
+            uploadedByUserId: request.UploadedByUserId.Value,
             description: request.Description?.Trim(),
             isRequired: false
         );

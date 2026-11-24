@@ -4,6 +4,7 @@ using MediatR;
 
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 // 1. Request DTO Namespaces
 using MohamedTransit.API.DTO.Document.Request;
@@ -77,9 +78,22 @@ public class ShipmentsController : BaseController
     [HttpPut("Update")]
     public async Task<IActionResult> Update([FromBody] UpdateShipmentRequest request, CancellationToken ct)
     {
+        var currentUserId = JwtHelper.GetCurrentUserId(_httpContextAccessor, _context);
+        if (currentUserId.HasValue &&
+            await IsCaseExecutorAsync(currentUserId.Value, ct) &&
+            !await _context.Shipments.AnyAsync(
+                shipment => shipment.Id == request.Id &&
+                            shipment.AssignedCaseExecutorId == currentUserId.Value,
+                ct))
+        {
+            return Forbid();
+        }
+
         var command = request.Adapt<UpdateShipmentCommand>();
         var result = await _mediator.Send(command, ct);
-        return Ok(result);
+        return result.IsError
+            ? HandleErrorResponse(result.Errors)
+            : HandleSuccessResponse(result.Payload);
     }
 
     // ==========================================
@@ -93,6 +107,17 @@ public class ShipmentsController : BaseController
     {
         try
         {
+            var currentUserId = JwtHelper.GetCurrentUserId(_httpContextAccessor, _context);
+            if (currentUserId.HasValue &&
+                await IsCaseExecutorAsync(currentUserId.Value, ct) &&
+                !await _context.Shipments.AnyAsync(
+                    shipment => shipment.Id == id &&
+                                shipment.AssignedCaseExecutorId == currentUserId.Value,
+                    ct))
+            {
+                return Forbid();
+            }
+
             var command = new UpdateShipmentStatusCommand(
                 id,
                 request.NewStatus,
@@ -102,6 +127,7 @@ public class ShipmentsController : BaseController
             var result = await _mediator.Send(command, ct);
             return Ok(result);
         }
+
         catch (KeyNotFoundException ex)
         {
             return NotFound(new { message = ex.Message });
@@ -112,15 +138,27 @@ public class ShipmentsController : BaseController
         }
     }
 
+    private Task<bool> IsCaseExecutorAsync(long userId, CancellationToken cancellationToken) =>
+        _context.UserRoles.AnyAsync(
+            userRole => userRole.UserId == userId && userRole.Role.Name == "CaseExecutor",
+            cancellationToken);
+
     // ==========================================
     // 6. Update Service Stage
     // ==========================================
     [HttpPut("UpdateServiceStage")]
     public async Task<IActionResult> UpdateServiceStage([FromBody] UpdateServiceStageRequest request, CancellationToken ct)
     {
+        var currentUserId = JwtHelper.GetCurrentUserId(_httpContextAccessor, _context);
+        if (!currentUserId.HasValue || currentUserId.Value <= 0)
+            return Unauthorized("User not authenticated");
+
         var command = request.Adapt<UpdateServiceStageCommand>();
+        command.UpdatedByUserId = currentUserId.Value;
         var result = await _mediator.Send(command, ct);
-        return Ok(result);
+        return result.IsError
+            ? HandleErrorResponse(result.Errors)
+            : HandleSuccessResponse(result.Payload);
     }
 
    
@@ -158,16 +196,17 @@ public class ShipmentsController : BaseController
     [HttpPut("UpdateStageStatus")]
     public async Task<IActionResult> UpdateStageStatus([FromBody] UpdateStageStatusRequest request)
     {
-        //var currentUserId = JwtHelper.GetCurrentUserId(_httpContextAccessor, _context);
-        //if (currentUserId == null)
-        //    return Unauthorized("User not authenticated");
+        var currentUserId = JwtHelper.GetCurrentUserId(_httpContextAccessor, _context);
+        if (!currentUserId.HasValue || currentUserId.Value <= 0)
+            return Unauthorized("User not authenticated");
 
         var command = new UpdateServiceStageCommand
         {
+            ShipmentId = request.ShipmentId,
             ShipmentStageId = request.StageId,
             Status = request.Status,
             Notes = request.Comments,
-            //  UpdatedByUserId = currentUserId.Value
+            UpdatedByUserId = currentUserId.Value
         };
 
         var result = await _mediator.Send(command);

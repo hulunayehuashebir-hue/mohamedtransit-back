@@ -925,6 +925,15 @@ namespace MohamedTransit.Domain.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("PasswordResetAttempts")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("PasswordResetCodeExpiresAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PasswordResetCodeHash")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Phone")
                         .IsRequired()
                         .HasColumnType("TEXT");

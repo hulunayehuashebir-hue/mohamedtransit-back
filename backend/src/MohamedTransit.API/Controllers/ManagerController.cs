@@ -9,7 +9,8 @@ using MohamedTransit.API.DTO.MOT.Request;
 using MohamedTransit.API.DTO.MOT.Response;
 using MohamedTransit.API.Helpers;
 using MohamedTransit.Application;
-using MohamedTransit.Application.Queries.Manager;
+using MohamedTransit.Application.Queries.Document;
+using MohamedTransit.Application.Queries.Shipment;
 using MohamedTransit.Domain.Data;
 using MohamedTransit.Domain.Entities;
 
@@ -183,18 +184,16 @@ public class ManagerController : BaseController
     [HttpGet("GetServiceById/{serviceId}")]
 public async Task<IActionResult> GetServiceById(long serviceId)
 {
-    var result = await _mediator.Send(new GetServiceByIdQuery(serviceId));
-    if (result.IsError)
-    {
-        return NotFound(result);
-    }
-    return Ok(result);
+    var result = await _mediator.Send(new GetShipmentByIdQuery(serviceId));
+    return result is null ? NotFound() : Ok(result);
 }
 [HttpGet("GetStageDocuments/{serviceId}")]
 public async Task<IActionResult> GetStageDocuments(long serviceId)
 {
-    var result = await _mediator.Send(new GetStageDocumentsQuery(serviceId));
-    return Ok(result);
+    var result = await _mediator.Send(new GetServiceDocumentsQuery { ServiceId = serviceId });
+    return result.IsError
+        ? HandleErrorResponse(result.Errors)
+        : HandleSuccessResponse(result.Payload);
 }
 
     /// <summary>
@@ -1523,13 +1522,14 @@ public async Task<IActionResult> GetStageDocuments(long serviceId)
 
     private async Task<bool> IsManager(long userId)
     {
+        var managerRoles = new[] { "manager", "admin", "superadmin" };
         return await _context.UserRoles
             .AsNoTracking()
             .AnyAsync(userRole =>
                 userRole.UserId == userId &&
                 userRole.User.RecordStatus == RecordStatus.Active &&
                 userRole.Role.RecordStatus == RecordStatus.Active &&
-                userRole.Role.Name.ToLower() == "manager");
+                managerRoles.Contains(userRole.Role.Name.ToLower().Replace(" ", "")));
     }
 
     private sealed record ServiceActivityItem(

@@ -17,6 +17,7 @@ public class ShipmentDetail
     public ServiceType ServiceType { get; set; }
     public ShipmentStatus Status { get; set; }
     public RiskLevel? RiskLevel { get; set; }
+    public HubLocation AssignedHub { get; set; }
     public long CustomerId { get; set; }
     public string ImporterName { get; set; } = string.Empty;
     public string ImporterTinNumber { get; set; } = string.Empty;
@@ -27,4 +28,6 @@ public class ShipmentDetail
     public DateTime? LastUpdateDate { get; set; }
     public bool RequiresCustomerAction { get; set; }
     public bool IsBlocked { get; set; }
+    public bool HasNeedsReview { get; set; }
+    public bool HasPendingStage { get; set; }
 }

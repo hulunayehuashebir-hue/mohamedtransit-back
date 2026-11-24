@@ -51,10 +51,11 @@ public class ServiceStageExecution : BaseEntity
         };
     }
 
-    public void UpdateStatus(StageStatus status, string? comments = null)
+    public void UpdateStatus(StageStatus status, string? comments = null, long? updatedByUserId = null)
     {
         Status = status;
         Comments = comments;
+        UpdatedByUserId = updatedByUserId;
 
         if (status == StageStatus.InProgress && !StartedAt.HasValue)
         {
@@ -69,10 +70,11 @@ public class ServiceStageExecution : BaseEntity
         SetUpdated();
     }
 
-    public void SetBlocked(bool isBlocked, string? reason = null)
+    public void SetBlocked(bool isBlocked, string? reason = null, long? updatedByUserId = null)
     {
         IsBlocked = isBlocked;
         BlockReason = reason;
+        UpdatedByUserId = updatedByUserId;
         SetUpdated();
     }
 

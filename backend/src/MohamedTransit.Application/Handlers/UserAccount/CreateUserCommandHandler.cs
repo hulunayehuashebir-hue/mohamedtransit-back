@@ -44,6 +44,18 @@ internal class CreateUserCommandHandler
                 ErrorCode.UserAlreadyExists);
         }
 
+        var customerRole = await _context.Roles
+            .FirstOrDefaultAsync(
+                role => role.Name.ToLower() == "customer",
+                cancellationToken);
+
+        if (customerRole is null)
+        {
+            return OperationResult<User>.Failure(
+                "The Customer role is not configured.",
+                ErrorCode.ServerError);
+        }
+
         // 2. Hash password during creation
         var hashedPassword = _passwordService.HashPassword(request.Password);
 
@@ -55,19 +67,14 @@ internal class CreateUserCommandHandler
             request.ProfilePhoto,
             request.Phone,
             hashedPassword,
-            request.IsSuperAdmin,
+            false,
             AccountStatus.Approved);
 
-        // 3. Attach Roles via Navigation Properties
-        foreach (var roleId in request.Roles)
+        user.AddRole(new UserRole
         {
-            var userRole = new UserRole
-            {
-                User = user, // Pass entity reference so EF links IDs automatically on Save
-                RoleId = roleId
-            };
-            user.AddRole(userRole);
-        }
+            User = user,
+            RoleId = customerRole.Id
+        });
 
         // 4. Save User & Roles together
         await _context.Users.AddAsync(user, cancellationToken);
