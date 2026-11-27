@@ -21,8 +21,10 @@ public class CustomerDocument : BaseEntity
     public string? Description { get; private set; }
     public bool IsRequired { get; private set; }
     public bool IsVerified { get; private set; }
+    public string VerificationStatus { get; private set; } = "Pending";
     public string? VerificationNotes { get; private set; }
     public DateTime? ExpiryDate { get; private set; }
+    public DateTime? VerifiedAt { get; private set; }
 
     // Foreign Keys
     public long? CustomerId { get; private set; }
@@ -61,8 +63,9 @@ public class CustomerDocument : BaseEntity
             UploadedByUserId = uploadedByUserId,
             Description = description,
             IsRequired = isRequired,
-            ExpiryDate = expiryDate,
+            ExpiryDate = expiryDate ?? DateTime.UtcNow.Date.AddYears(1),
             IsVerified = false,
+            VerificationStatus = "Pending",
             RecordStatus = RecordStatus.Active
         };
     }
@@ -70,7 +73,9 @@ public class CustomerDocument : BaseEntity
     public void Verify(long verifiedByUserId, string? notes = null)
     {
         IsVerified = true;
+        VerificationStatus = "Verified";
         VerifiedByUserId = verifiedByUserId;
+        VerifiedAt = DateTime.UtcNow;
         VerificationNotes = notes;
         SetUpdated();
     }
@@ -86,14 +91,28 @@ public class CustomerDocument : BaseEntity
     public void VerifyDocument(bool isVerified, string? verificationNotes = null)
     {
         IsVerified = isVerified;
+        VerificationStatus = isVerified ? "Verified" : "Pending";
+        VerifiedAt = isVerified ? DateTime.UtcNow : null;
         VerificationNotes = verificationNotes;
         SetUpdated();
     }
 
     public void SetVerification(bool isVerified, long assessorId, string? verificationNotes = null)
     {
-        IsVerified = isVerified;
-        VerifiedByUserId = isVerified ? assessorId : null;
+        SetReviewStatus(isVerified ? "Verified" : "Pending", assessorId, verificationNotes);
+    }
+
+    public void SetReviewStatus(string status, long assessorId, string? verificationNotes = null)
+    {
+        if (status is not ("Pending" or "Verified" or "Rejected"))
+            throw new ArgumentOutOfRangeException(nameof(status), "Unsupported customer document review status.");
+        if (status == "Verified" && IsExpired)
+            throw new InvalidOperationException("An expired customer document cannot be verified.");
+
+        IsVerified = status == "Verified";
+        VerificationStatus = status;
+        VerifiedByUserId = IsVerified ? assessorId : null;
+        VerifiedAt = IsVerified ? DateTime.UtcNow : null;
         VerificationNotes = verificationNotes;
         SetUpdated();
     }

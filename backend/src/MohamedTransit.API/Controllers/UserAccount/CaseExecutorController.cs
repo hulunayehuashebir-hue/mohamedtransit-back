@@ -15,19 +15,28 @@ using MohamedTransit.Application.DTO;
 using MohamedTransit.Domain.Entities;
 using MohamedTransit.API.DTO.MOT.Request;
 using MohamedTransit.Application.Documents.Commands;
+using MohamedTransit.Application.DataSeeder;
 namespace MohamedTransit.API.Controllers;
 
 [ApiController]
 [Route("api/v1/[controller]")]
-public class CaseExecutorController : BaseController
+public partial class CaseExecutorController : BaseController
 {
     private readonly ApplicationDbContext _context;
     private readonly IHttpContextAccessor _httpContextAccessor;
 
-    public CaseExecutorController(ApplicationDbContext context, IHttpContextAccessor httpContextAccessor)
+    public CaseExecutorController(
+        ApplicationDbContext context,
+        IHttpContextAccessor httpContextAccessor,
+        IWebHostEnvironment environment,
+        IServiceWorkflowInitializer workflowInitializer,
+        IServiceProvider serviceProvider)
     {
         _context = context;
         _httpContextAccessor = httpContextAccessor;
+        _environment = environment;
+        _workflowInitializer = workflowInitializer;
+        _serviceProvider = serviceProvider;
     }
 
     /// <summary>
@@ -39,10 +48,14 @@ public class CaseExecutorController : BaseController
         var currentUserId = JwtHelper.GetCurrentUserId(_httpContextAccessor, _context);
         if (currentUserId == null)
             return Unauthorized("User not authenticated");
+        if (!await IsCaseExecutor(currentUserId.Value))
+            return Forbid();
 
         var servicesQuery = _context.Shipments
             .AsNoTracking()
-            .Where(shipment => shipment.AssignedCaseExecutorId == currentUserId.Value);
+            .Where(shipment =>
+                shipment.AssignedCaseExecutorId == currentUserId.Value &&
+                shipment.RecordStatus == RecordStatus.Active);
 
         if (recordStatus.HasValue)
         {
@@ -120,6 +133,8 @@ public class CaseExecutorController : BaseController
         var currentUserId = JwtHelper.GetCurrentUserId(_httpContextAccessor, _context);
         if (currentUserId == null)
             return Unauthorized("User not authenticated");
+        if (!await IsCaseExecutor(currentUserId.Value, cancellationToken))
+            return Forbid();
         if (!await IsCaseExecutor(currentUserId.Value))
             return Forbid();
 
@@ -212,8 +227,10 @@ public class CaseExecutorController : BaseController
             return BadRequest("A document file is required.");
         if (request.File.Length > 25 * 1024 * 1024)
             return BadRequest("File is too large. Maximum size is 25 MB.");
-        if (!Enum.IsDefined(request.DocumentType))
-            return BadRequest("Choose a valid document type.");
+        if (!TryParseDocumentType(request.DocumentType, out var documentType))
+            return BadRequest(
+                $"Invalid document type '{request.DocumentType}'. Supported values: " +
+                $"{string.Join(", ", Enum.GetNames<DocumentType>())}, Supporting document, Commercial invoice, Air waybill, Payment receipt, and Clearance certificate.");
 
         var assignedShipment = await _context.Shipments.AnyAsync(
             shipment => shipment.Id == request.ShipmentId &&
@@ -238,7 +255,7 @@ public class CaseExecutorController : BaseController
             ShipmentId = request.ShipmentId,
             UploadedByUserId = currentUserId.Value,
             File = request.File,
-            DocumentType = request.DocumentType,
+            DocumentType = documentType,
             ServiceStageId = request.ShipmentStageId,
             Description = request.Description
         }, cancellationToken);
@@ -260,6 +277,8 @@ public class CaseExecutorController : BaseController
         var currentUserId = JwtHelper.GetCurrentUserId(_httpContextAccessor, _context);
         if (currentUserId == null)
             return Unauthorized("User not authenticated");
+        if (!await IsCaseExecutor(currentUserId.Value, cancellationToken))
+            return Forbid();
         if (!await IsCaseExecutor(currentUserId.Value))
             return Forbid();
 
@@ -539,6 +558,8 @@ public class CaseExecutorController : BaseController
         var currentUserId = JwtHelper.GetCurrentUserId(_httpContextAccessor, _context);
         if (currentUserId == null)
             return Unauthorized("User not authenticated");
+        if (!await IsCaseExecutor(currentUserId.Value, cancellationToken))
+            return Forbid();
 
         if (!Enum.IsDefined(request.Status) || request.Status == StageStatus.Blocked)
             return BadRequest("Choose a valid stage status. Use BlockStage to block a stage.");
@@ -555,24 +576,39 @@ public class CaseExecutorController : BaseController
         if (stage == null)
             return NotFound("Assigned service stage not found.");
 
-        stage.UpdateStatus(request.Status, request.Notes ?? stage.Comments, currentUserId.Value);
-        await _context.SaveChangesAsync(cancellationToken);
-
-        return HandleSuccessResponse(stage);
+        var result = await _mediator.Send(new MohamedTransit.Application.UpdateServiceStageCommand
+        {
+            ShipmentId = request.ShipmentId,
+            ShipmentStageId = request.StageId,
+            Status = request.Status,
+            Notes = request.Notes ?? stage.Comments,
+            UpdatedByUserId = currentUserId.Value
+        }, cancellationToken);
+        return result.IsError
+            ? HandleErrorResponse(result.Errors)
+            : HandleSuccessResponse(result.Payload);
     }
 
     /// <summary>
     /// Get service details for execution
     /// </summary>
     [HttpGet("GetAssignedServiceById")]
-    public async Task<IActionResult> GetAssignedServiceById([FromQuery] long Id)
+    public async Task<IActionResult> GetAssignedServiceById([FromQuery] long Id, CancellationToken cancellationToken)
     {
         var currentUserId = JwtHelper.GetCurrentUserId(_httpContextAccessor, _context);
         if (currentUserId == null)
             return Unauthorized("User not authenticated");
+        if (!await IsCaseExecutor(currentUserId.Value, cancellationToken))
+            return Forbid();
+        if (!await _context.Shipments.AnyAsync(shipment =>
+                shipment.Id == Id &&
+                shipment.AssignedCaseExecutorId == currentUserId.Value &&
+                shipment.RecordStatus == RecordStatus.Active,
+                cancellationToken))
+            return NotFound("Assigned service not found.");
 
         var query = new GetCaseExecutorAssignedServicesByIdQuery { Id = Id, AssignedCaseExecutorId = currentUserId.Value };
-        var result = await _mediator.Send(query);
+        var result = await _mediator.Send(query, cancellationToken);
         // var rolesList = result.Payload.Adapt<List<ServiceDetail>>();
         return result.IsError ? HandleErrorResponse(result.Errors) : HandleSuccessResponse(result.Payload);
     }
@@ -586,6 +622,8 @@ public class CaseExecutorController : BaseController
         var currentUserId = JwtHelper.GetCurrentUserId(_httpContextAccessor, _context);
         if (currentUserId == null)
             return Unauthorized("User not authenticated");
+        if (!await IsCaseExecutor(currentUserId.Value, cancellationToken))
+            return Forbid();
 
         var userId = currentUserId.Value;
         var activities = new List<CaseExecutorActivityResponse>();
@@ -767,12 +805,17 @@ public class CaseExecutorController : BaseController
         if (request.File.Length > 25 * 1024 * 1024)
             return BadRequest("File is too large. Maximum size is 25 MB.");
 
-        if (!Enum.IsDefined(request.DocumentType))
-            return BadRequest("Choose a valid document type.");
+        if (!TryParseDocumentType(request.DocumentType, out var documentType))
+            return BadRequest(
+                $"Invalid document type '{request.DocumentType}'. Supported values: " +
+                $"{string.Join(", ", Enum.GetNames<DocumentType>())}, Supporting document, Commercial invoice, Air waybill, Payment receipt, and Clearance certificate.");
+
+        if (!request.StageId.HasValue || request.StageId.Value <= 0)
+            return BadRequest("A valid stage ID is required.");
 
         var assignedStage = await _context.ServiceStageExecutions
             .AnyAsync(stage =>
-                stage.Id == request.StageId &&
+                stage.Id == request.StageId.Value &&
                 stage.ShipmentId == request.ShipmentId &&
                 stage.Shipment != null &&
                 stage.Shipment.AssignedCaseExecutorId == currentUserId.Value,
@@ -784,9 +827,9 @@ public class CaseExecutorController : BaseController
         var command = new UploadDocumentCommand
         {
             ShipmentId = request.ShipmentId,
-            StageId = request.StageId,
+            StageId = request.StageId.Value,
             File = request.File,
-            DocumentType = request.DocumentType,
+            DocumentType = documentType,
             Description = request.Description,
             UploadedByUserId = currentUserId.Value
         };
@@ -801,17 +844,30 @@ public class CaseExecutorController : BaseController
     /// Add comment to a service stage
     /// </summary>
     [HttpPost("AddStageComment")]
-    public async Task<IActionResult> AddStageComment([FromBody] AddStageCommentRequest request)
+    public async Task<IActionResult> AddStageComment(
+        [FromBody] AddStageCommentRequest request,
+        CancellationToken cancellationToken)
     {
         var currentUserId = JwtHelper.GetCurrentUserId(_httpContextAccessor, _context);
         if (currentUserId == null)
             return Unauthorized("User not authenticated");
+        if (!await IsCaseExecutor(currentUserId.Value, cancellationToken))
+            return Forbid();
 
         var stage = await _context.ShipmentStages
-            .FirstOrDefaultAsync(s => s.Id == request.StageId && s.ShipmentId == request.ShipmentId);
+            .Include(item => item.Shipment)
+            .FirstOrDefaultAsync(s =>
+                s.Id == request.StageId &&
+                s.ShipmentId == request.ShipmentId &&
+                s.RecordStatus == RecordStatus.Active,
+                cancellationToken);
 
         if (stage == null)
             return NotFound("Service stage not found");
+        if (stage.Shipment?.AssignedCaseExecutorId != currentUserId.Value)
+            return Forbid();
+        if (string.IsNullOrWhiteSpace(request.Comment))
+            return BadRequest("A comment is required.");
 
         var comment = StageComment.Create(
             request.Comment,
@@ -820,7 +876,29 @@ public class CaseExecutorController : BaseController
         );
 
         _context.StageComments.Add(comment);
-        await _context.SaveChangesAsync();
+        var actorName = await _context.Users
+            .Where(user => user.Id == currentUserId.Value)
+            .Select(user => (user.FirstName + " " + user.LastName).Trim())
+            .FirstAsync(cancellationToken);
+        _context.StageDiscussions.Add(new StageDiscussion
+        {
+            ServiceId = request.ShipmentId,
+            StageId = request.StageId,
+            AuthorUserId = currentUserId.Value,
+            AuthorName = actorName,
+            AuthorRole = "Case Executor",
+            Message = request.Comment.Trim(),
+            CreatedAt = DateTime.UtcNow,
+            RecordStatus = RecordStatus.Active
+        });
+        _context.ServiceActivityLogs.Add(ServiceActivityLog.Create(
+            request.ShipmentId,
+            request.StageId,
+            "Stage discussion added",
+            request.Comment.Trim(),
+            currentUserId.Value,
+            actorName));
+        await _context.SaveChangesAsync(cancellationToken);
 
         return HandleSuccessResponse(comment);
     }
@@ -829,27 +907,52 @@ public class CaseExecutorController : BaseController
     /// Set risk level for a service
     /// </summary>
     [HttpPut("SetRiskLevel")]
-    public async Task<IActionResult> SetRiskLevel([FromBody] SetRiskLevelRequest request)
+    public async Task<IActionResult> SetRiskLevel(
+        [FromBody] SetRiskLevelRequest request,
+        CancellationToken cancellationToken)
     {
         var currentUserId = JwtHelper.GetCurrentUserId(_httpContextAccessor, _context);
         if (currentUserId == null)
             return Unauthorized("User not authenticated");
+        if (!await IsCaseExecutor(currentUserId.Value, cancellationToken))
+            return Forbid();
+        if (!Enum.IsDefined(request.RiskLevel))
+            return BadRequest("Choose a valid risk level.");
 
         var shipment = await _context.Shipments
-            .FirstOrDefaultAsync(s => s.Id == request.ShipmentId);
+            .FirstOrDefaultAsync(s =>
+                s.Id == request.ShipmentId &&
+                s.RecordStatus == RecordStatus.Active,
+                cancellationToken);
 
         if (shipment == null)
             return NotFound("Shipment not found");
+        if (shipment.AssignedCaseExecutorId != currentUserId.Value)
+            return Forbid();
 
         shipment.UpdateRiskLevel(request.RiskLevel);
+        var actorName = await GetExecutorNameAsync(currentUserId.Value, cancellationToken);
+        shipment.UpdateManagerWorkspace(
+            string.IsNullOrWhiteSpace(shipment.ServiceCode) ? shipment.TrackingNumber : shipment.ServiceCode,
+            string.IsNullOrWhiteSpace(shipment.ReferenceNumber) ? shipment.TrackingNumber : shipment.ReferenceNumber,
+            string.IsNullOrWhiteSpace(shipment.Title) ? shipment.Description : shipment.Title,
+            string.IsNullOrWhiteSpace(shipment.WorkflowStatus) ? ResolveServiceStatus(null, shipment.Status) : shipment.WorkflowStatus,
+            request.RiskLevel.ToString(),
+            shipment.ETA,
+            shipment.SlaDeadline,
+            shipment.CarrierOrVessel,
+            shipment.LogisticsRouteSummary,
+            shipment.ConsignmentDetails,
+            shipment.CompletionPercentage);
 
         // Add risk notes to the current stage if provided
         if (!string.IsNullOrEmpty(request.RiskNotes))
         {
             var currentStage = await _context.ShipmentStages
                 .Where(s => s.ShipmentId == request.ShipmentId)
-                .OrderByDescending(s => s.CreatedDate)
-                .FirstOrDefaultAsync();
+                .Where(s => s.RecordStatus == RecordStatus.Active)
+                .OrderBy(s => s.StageNumber)
+                .FirstOrDefaultAsync(cancellationToken);
 
             if (currentStage != null)
             {
@@ -857,7 +960,14 @@ public class CaseExecutorController : BaseController
             }
         }
 
-        await _context.SaveChangesAsync();
+        _context.ServiceActivityLogs.Add(ServiceActivityLog.Create(
+            shipment.Id,
+            null,
+            "Risk channel updated",
+            $"Risk channel set to {request.RiskLevel}. {request.RiskNotes}".Trim(),
+            currentUserId.Value,
+            actorName));
+        await _context.SaveChangesAsync(cancellationToken);
 
         return HandleSuccessResponse(shipment);
     }
@@ -866,24 +976,40 @@ public class CaseExecutorController : BaseController
     /// Block a service stage
     /// </summary>
     [HttpPut("BlockStage")]
-    public async Task<IActionResult> BlockStage([FromBody] BlockStageRequest request)
+    public async Task<IActionResult> BlockStage(
+        [FromBody] BlockStageRequest request,
+        CancellationToken cancellationToken)
     {
         var currentUserId = JwtHelper.GetCurrentUserId(_httpContextAccessor, _context);
         if (currentUserId == null)
             return Unauthorized("User not authenticated");
-
+        if (!await IsCaseExecutor(currentUserId.Value, cancellationToken))
+            return Forbid();
 
         var stage = await _context.ShipmentStages
-            .FirstOrDefaultAsync(s => s.Id == request.StageId && s.ShipmentId == request.ShipmentId);
+            .Include(item => item.Shipment)
+            .FirstOrDefaultAsync(s =>
+                s.Id == request.StageId &&
+                s.ShipmentId == request.ShipmentId &&
+                s.RecordStatus == RecordStatus.Active,
+                cancellationToken);
 
         if (stage == null)
             return NotFound("Service stage not found");
+        if (stage.Shipment?.AssignedCaseExecutorId != currentUserId.Value)
+            return Forbid();
 
-        stage.SetBlocked(true, request.Reason, currentUserId.Value);
-
-        await _context.SaveChangesAsync();
-
-        return HandleSuccessResponse(stage);
+        var result = await _mediator.Send(new MohamedTransit.Application.UpdateServiceStageCommand
+        {
+            ShipmentId = request.ShipmentId,
+            ShipmentStageId = request.StageId,
+            Status = StageStatus.Blocked,
+            Notes = request.Reason,
+            UpdatedByUserId = currentUserId.Value
+        }, cancellationToken);
+        return result.IsError
+            ? HandleErrorResponse(result.Errors)
+            : HandleSuccessResponse(result.Payload);
     }
 
     /// <summary>
@@ -895,19 +1021,25 @@ public class CaseExecutorController : BaseController
         var currentUserId = JwtHelper.GetCurrentUserId(_httpContextAccessor, _context);
         if (currentUserId == null)
             return Unauthorized("User not authenticated");
+        if (!await IsCaseExecutor(currentUserId.Value))
+            return Forbid();
 
         var dashboard = new MohamedTransit.API.DTO.MOT.Response.CaseExecutorDashboardResponse
         {
             AssignedServices = await _context.Shipments.CountAsync(s => s.AssignedCaseExecutorId == currentUserId.Value),
             PendingServices = await _context.Shipments.CountAsync(s => s.AssignedCaseExecutorId == currentUserId.Value && s.Status == ShipmentStatus.InProgress),
             CompletedServices = await _context.Shipments.CountAsync(s => s.AssignedCaseExecutorId == currentUserId.Value && s.Status == ShipmentStatus.Completed),
-            BlockedStages = await _context.ShipmentStages.CountAsync(s => s.Shipment.AssignedCaseExecutorId == currentUserId.Value && s.IsBlocked)
+            BlockedStages = await _context.ShipmentStages.CountAsync(s =>
+                s.Shipment != null &&
+                s.Shipment.AssignedCaseExecutorId == currentUserId.Value &&
+                s.IsBlocked)
         };
 
         // Get today's tasks
         dashboard.TodaysTasks = await _context.ShipmentStages
             .Include(s => s.Shipment)
-            .Where(s => s.Shipment.AssignedCaseExecutorId == currentUserId.Value &&
+            .Where(s => s.Shipment != null &&
+                       s.Shipment.AssignedCaseExecutorId == currentUserId.Value &&
                        s.Status == StageStatus.Pending &&
                        s.CreatedDate.Date == DateTime.UtcNow.Date)
             .ToListAsync();
@@ -929,6 +1061,8 @@ public class CaseExecutorController : BaseController
         var currentUserId = JwtHelper.GetCurrentUserId(_httpContextAccessor, _context);
         if (currentUserId == null)
             return Unauthorized("User not authenticated");
+        if (!await IsCaseExecutor(currentUserId.Value, cancellationToken))
+            return Forbid();
 
         var isAssigned = await _context.StageDocuments
             .AnyAsync(document =>
@@ -966,6 +1100,8 @@ public class CaseExecutorController : BaseController
         var currentUserId = JwtHelper.GetCurrentUserId(_httpContextAccessor, _context);
         if (currentUserId == null)
             return Unauthorized("User not authenticated");
+        if (!await IsCaseExecutor(currentUserId.Value, cancellationToken))
+            return Forbid();
 
         if (documentIds == null || documentIds.Count == 0)
             return BadRequest("Select at least one document to download.");
@@ -1003,6 +1139,7 @@ public class CaseExecutorController : BaseController
 
         var candidates = new[]
         {
+            Path.Combine(_environment.ContentRootPath, filePath),
             Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", filePath),
             Path.Combine(Directory.GetCurrentDirectory(), filePath)
         };
@@ -1010,13 +1147,57 @@ public class CaseExecutorController : BaseController
         return candidates.FirstOrDefault(System.IO.File.Exists);
     }
 
-    private async Task<bool> IsCaseExecutor(long userId)
+    private static bool TryParseDocumentType(string? raw, out DocumentType parsed)
     {
-        var user = await _context.Users
-            .Include(u => u.UserRoles)
-            .ThenInclude(ur => ur.Role)
-            .FirstOrDefaultAsync(u => u.Id == userId);
+        parsed = default;
+        if (string.IsNullOrWhiteSpace(raw))
+            return false;
 
-        return user?.UserRoles.Any(ur => ur.Role.Name == "CaseExecutor") ?? false;
+        var value = raw.Trim();
+        if (Enum.TryParse(value, ignoreCase: true, out parsed) &&
+            Enum.IsDefined(typeof(DocumentType), parsed))
+            return true;
+
+        var normalizedValue = new string(value.Where(char.IsLetterOrDigit).ToArray())
+            .ToUpperInvariant();
+        foreach (var documentType in Enum.GetValues<DocumentType>())
+        {
+            var normalizedName = new string(documentType.ToString()
+                .Where(char.IsLetterOrDigit)
+                .ToArray());
+            if (string.Equals(normalizedName, normalizedValue, StringComparison.OrdinalIgnoreCase))
+            {
+                parsed = documentType;
+                return true;
+            }
+        }
+
+        var alias = normalizedValue switch
+        {
+            "SUPPORTINGDOCUMENT" => DocumentType.LegalDocument,
+            "COMMERCIALINVOICE" => DocumentType.Invoice,
+            "AIRWAYBILL" => DocumentType.ArrivalPhoto,
+            "PAYMENTRECEIPT" => DocumentType.BankReceipt,
+            "CLEARANCECERTIFICATE" => DocumentType.ClearanceDocument,
+            _ => (DocumentType?)null
+        };
+        if (!alias.HasValue)
+            return false;
+
+        parsed = alias.Value;
+        return true;
+    }
+
+    private async Task<bool> IsCaseExecutor(long userId, CancellationToken cancellationToken = default)
+    {
+        return await _context.UserRoles
+            .AsNoTracking()
+            .AnyAsync(userRole =>
+                userRole.UserId == userId &&
+                userRole.User.RecordStatus == RecordStatus.Active &&
+                userRole.User.AccountStatus == AccountStatus.Approved &&
+                userRole.Role.RecordStatus == RecordStatus.Active &&
+                userRole.Role.Name.ToLower() == "caseexecutor",
+                cancellationToken);
     }
 }

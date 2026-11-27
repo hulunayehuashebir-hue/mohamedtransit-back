@@ -15,6 +15,7 @@ public class StageDocument : BaseEntity
     public long FileSizeBytes { get; private set; }
     public string MimeType { get; private set; } = string.Empty;
     public DocumentType DocumentType { get; private set; }
+    public string? DocumentTypeLabel { get; private set; }
     public string? Description { get; private set; }
     public bool IsRequired { get; private set; }
     public bool IsVerified { get; private set; }
@@ -41,7 +42,8 @@ public class StageDocument : BaseEntity
         long serviceStageId,
         long uploadedByUserId,
         string? description = null,
-        bool isRequired = false)
+        bool isRequired = false,
+        string? documentTypeLabel = null)
     {
         return new StageDocument
         {
@@ -52,6 +54,7 @@ public class StageDocument : BaseEntity
             FileSizeBytes = fileSizeBytes,
             MimeType = mimeType,
             DocumentType = documentType,
+            DocumentTypeLabel = documentTypeLabel,
             ServiceStageId = serviceStageId,
             UploadedByUserId = uploadedByUserId,
             Description = description,

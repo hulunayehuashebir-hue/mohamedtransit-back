@@ -1,11 +1,13 @@
 using System.Text;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using MohamedTransit.Api.Middleware;
 using MohamedTransit.API;
+using MohamedTransit.API.Authorization;
 using MohamedTransit.API.Services;
 using MohamedTransit.Application;
 using MohamedTransit.Application.DataSeeder;
@@ -53,6 +55,7 @@ builder.Services.AddScoped<INotificationService, NotificationService>();
 // 2. Application & MediatR Architecture Setup
 builder.Services.AddApplication();
 builder.Services.AddScoped<IDataSeederService, DataSeederService>();
+builder.Services.AddScoped<IServiceWorkflowInitializer, ServiceWorkflowInitializer>();
 
 // 3. Application Services Registration
 builder.Services.AddScoped<IFileStorageService, FileStorageService>();
@@ -90,6 +93,13 @@ builder.Services
             ClockSkew = TimeSpan.Zero
         };
     });
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("ManagerAccess", policy =>
+        policy.RequireAuthenticatedUser().AddRequirements(new ManagerAccessRequirement()));
+});
+builder.Services.AddScoped<IAuthorizationHandler, ManagerAccessHandler>();
 // 5. OpenAPI / Scalar Documentation
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
@@ -149,12 +159,18 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     db.Database.Migrate();
+    await scope.ServiceProvider
+        .GetRequiredService<IServiceWorkflowInitializer>()
+        .EnsureAllInitializedAsync();
     await CustomerRoleSeeder.SeedAsync(db);
     AdminPrivilegeSeeder.Seed(scope.ServiceProvider);
     if (app.Environment.IsDevelopment())
     {
         await scope.ServiceProvider.GetRequiredService<IDataSeederService>().SeedAsync();
     }
+    await scope.ServiceProvider
+        .GetRequiredService<IServiceWorkflowInitializer>()
+        .EnsureAllInitializedAsync();
 }
 
 // 10. Profile Photo Static File Mapping Configuration

@@ -77,10 +77,22 @@ internal class UploadShipmentDocumentCommandHandler
                 serviceId: request.ShipmentId, // ShipmentId ይተላለፋል
                 uploadedByUserId: userId,
                 serviceStageId: request.ServiceStageId,
-                description: request.Description
+                description: request.Description,
+                documentTypeLabel: request.DocumentTypeLabel
             );
 
             _context.ServiceDocuments.Add(document);
+            var actorName = await _context.Users
+                .Where(user => user.Id == userId)
+                .Select(user => user.FirstName + " " + user.LastName)
+                .FirstAsync(cancellationToken);
+            _context.ServiceActivityLogs.Add(ServiceActivityLog.Create(
+                request.ShipmentId,
+                request.ServiceStageId,
+                "Service document uploaded",
+                $"{request.DocumentTypeLabel ?? request.DocumentType.ToString()} uploaded: {Path.GetFileName(request.File.FileName)}",
+                userId,
+                actorName.Trim()));
             await _context.SaveChangesAsync(cancellationToken);
 
             result.Payload = document;

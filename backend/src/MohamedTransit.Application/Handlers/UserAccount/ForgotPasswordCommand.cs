@@ -3,6 +3,7 @@ using System.Text;
 using System.Globalization;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MohamedTransit.Application.DTO;
 using MohamedTransit.Application.Helper;
@@ -22,15 +23,18 @@ public class ForgotPasswordCommandHandler
     private readonly ApplicationDbContext _context;
     private readonly EmailSenderService _emailSenderService;
     private readonly Settings _settings;
+    private readonly ILogger<ForgotPasswordCommandHandler> _logger;
 
     public ForgotPasswordCommandHandler(
         ApplicationDbContext context,
         EmailSenderService emailSenderService,
-        IOptions<Settings> settings)
+        IOptions<Settings> settings,
+        ILogger<ForgotPasswordCommandHandler> logger)
     {
         _context = context;
         _emailSenderService = emailSenderService;
         _settings = settings.Value;
+        _logger = logger;
     }
 
     public async Task<OperationResult<Unit>> Handle(
@@ -134,11 +138,12 @@ public class ForgotPasswordCommandHandler
 
             return result;
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
+            _logger.LogError(exception, "Failed to process a password reset email request.");
             result.AddError(
                 ErrorCode.ServerError,
-                ex.Message);
+                "Unable to process the password reset request right now. Please try again later.");
         }
 
         return result;

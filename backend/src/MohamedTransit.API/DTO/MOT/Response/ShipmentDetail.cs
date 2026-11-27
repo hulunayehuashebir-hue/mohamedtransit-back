@@ -23,6 +23,10 @@ public class ShipmentDetail
     public string ImporterTinNumber { get; set; } = string.Empty;
     public long? AssignedCaseExecutorId { get; set; }
     public long? AssignedAssessorId { get; set; }
+    public string? CaseExecutorName { get; set; }
+    public string? AssessorName { get; set; }
+    public string? RiskChannel { get; set; }
+    public IReadOnlyList<CaseExecutorAssignedStaffResponse> AssignedStaff { get; set; } = [];
     public DateTime RegisteredDate { get; set; }
     public DateTime? DueAt { get; set; }
     public DateTime? LastUpdateDate { get; set; }

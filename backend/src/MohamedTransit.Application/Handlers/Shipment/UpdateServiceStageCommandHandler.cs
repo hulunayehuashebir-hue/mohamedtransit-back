@@ -46,6 +46,61 @@ internal class UpdateServiceStageCommandHandler : IRequestHandler<UpdateServiceS
 
         // 3. Status እና Comments/Notes ማሻሻል (የ Entityው UpdateStatus method በመጠቀም)
         stageExecution.UpdateStatus(request.Status, request.Notes, request.UpdatedByUserId);
+        stageExecution.SetBlocked(
+            request.Status == StageStatus.Blocked,
+            request.Status == StageStatus.Blocked ? request.Notes : null,
+            request.UpdatedByUserId);
+        stageExecution.SetCustomerActionRequired(request.Status == StageStatus.RequiresCustomerAction);
+
+        var service = await _context.Shipments
+            .FirstOrDefaultAsync(shipment => shipment.Id == request.ShipmentId, cancellationToken);
+        if (service is null)
+        {
+            result.AddError(ErrorCode.NotFound, $"Shipment '{request.ShipmentId}' was not found.");
+            return result;
+        }
+
+        var stages = await _context.ServiceStageExecutions
+            .Where(stage =>
+                stage.ShipmentId == request.ShipmentId &&
+                stage.RecordStatus == RecordStatus.Active)
+            .ToListAsync(cancellationToken);
+        var completedCount = stages.Count(stage => stage.Status == StageStatus.Completed);
+        var overallStatus = stages.Any(stage => stage.Status == StageStatus.Blocked || stage.IsBlocked)
+            ? "Blocked"
+            : stages.Any(stage => stage.Status == StageStatus.RequiresCustomerAction || stage.RequiresCustomerAction)
+                ? "RequiresCustomerAction"
+                : stages.Any(stage => stage.Status == StageStatus.NeedsReview)
+                    ? "NeedsReview"
+                    : stages.Count > 0 && completedCount == stages.Count
+                        ? "Completed"
+                        : "InProgress";
+        service.UpdateManagerWorkspace(
+            string.IsNullOrWhiteSpace(service.ServiceCode) ? service.TrackingNumber : service.ServiceCode,
+            string.IsNullOrWhiteSpace(service.ReferenceNumber) ? service.TrackingNumber : service.ReferenceNumber,
+            string.IsNullOrWhiteSpace(service.Title) ? service.Description : service.Title,
+            overallStatus,
+            string.IsNullOrWhiteSpace(service.ManagerRiskChannel)
+                ? service.RiskLevel?.ToString() ?? "Green"
+                : service.ManagerRiskChannel,
+            service.ETA,
+            service.SlaDeadline,
+            service.CarrierOrVessel,
+            service.LogisticsRouteSummary,
+            service.ConsignmentDetails,
+            stages.Count == 0 ? 0 : (int)Math.Round(100d * completedCount / stages.Count));
+
+        var actorName = await _context.Users
+            .Where(user => user.Id == request.UpdatedByUserId)
+            .Select(user => user.FirstName + " " + user.LastName)
+            .FirstAsync(cancellationToken);
+        _context.ServiceActivityLogs.Add(ServiceActivityLog.Create(
+            request.ShipmentId,
+            request.ShipmentStageId,
+            request.Status == StageStatus.Blocked ? "Stage blocked" : "Stage updated",
+            $"Status changed to {request.Status}. {request.Notes}".Trim(),
+            request.UpdatedByUserId,
+            actorName.Trim()));
 
         // 4. ለውጦችን Save ማድረግ
         await _context.SaveChangesAsync(cancellationToken);

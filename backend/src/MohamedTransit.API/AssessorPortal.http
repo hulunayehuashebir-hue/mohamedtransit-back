@@ -1,0 +1,128 @@
+@baseUrl = http://localhost:5254
+@token = replace-with-access-token
+@customerId = 1
+@documentId = 1
+@serviceId = 1
+@stageId = 1
+
+### Assessor dashboard
+GET {{baseUrl}}/api/v1/Assessor/Dashboard
+Authorization: Bearer {{token}}
+
+### Customer approval queue with KYC document checklist
+GET {{baseUrl}}/api/v1/Assessor/customers/approvals
+Authorization: Bearer {{token}}
+
+### Customer approval detail
+GET {{baseUrl}}/api/v1/Assessor/customers/{{customerId}}
+Authorization: Bearer {{token}}
+
+### Verify an individual KYC document
+POST {{baseUrl}}/api/v1/Assessor/customers/{{customerId}}/documents/{{documentId}}/verify
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "decision": "Verified",
+  "notes": "KYC information and expiry checked."
+}
+
+### Approve, reject, or request customer changes
+POST {{baseUrl}}/api/v1/Assessor/customers/{{customerId}}/decision
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "decision": "RequestChanges",
+  "assessorNote": "Upload a current import license."
+}
+
+### Download customer KYC document
+GET {{baseUrl}}/api/v1/Assessor/customers/{{customerId}}/documents/{{documentId}}/download
+Authorization: Bearer {{token}}
+
+### All assessment documents (service and customer KYC)
+GET {{baseUrl}}/api/v1/Assessor/Documents
+Authorization: Bearer {{token}}
+
+### Service review queue
+GET {{baseUrl}}/api/v1/Assessor/service-reviews
+Authorization: Bearer {{token}}
+
+### All active services
+GET {{baseUrl}}/api/v1/Assessor/services
+Authorization: Bearer {{token}}
+
+### Assessor service workspace
+GET {{baseUrl}}/api/v1/Assessor/services/{{serviceId}}
+Authorization: Bearer {{token}}
+
+### Service stages and uploaded stage documents
+GET {{baseUrl}}/api/v1/Assessor/services/{{serviceId}}/stages
+Authorization: Bearer {{token}}
+
+### Assign a service or stage risk channel
+PUT {{baseUrl}}/api/v1/Assessor/services/risk-channel
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "shipmentId": {{serviceId}},
+  "stageId": {{stageId}},
+  "riskChannel": "Yellow",
+  "notes": "Review required handling controls."
+}
+
+### Submit a service or stage assessment decision
+POST {{baseUrl}}/api/v1/Assessor/services/assessment
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "serviceId": {{serviceId}},
+  "stageId": {{stageId}},
+  "decision": "NeedsReview",
+  "taxAmount": 0,
+  "dutyAmount": 0,
+  "assessorNote": "Verify the supporting evidence."
+}
+
+### Assessment audit log
+GET {{baseUrl}}/api/v1/Assessor/AssessmentLogs
+Authorization: Bearer {{token}}
+
+### Customer uploads a KYC document (replace path with a local PDF)
+POST {{baseUrl}}/api/v1/Customer/UploadKycDocument
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=KycDocumentBoundary
+
+--KycDocumentBoundary
+Content-Disposition: form-data; name="documentType"
+
+Business License
+--KycDocumentBoundary
+Content-Disposition: form-data; name="expiresAt"
+
+2027-11-25
+--KycDocumentBoundary
+Content-Disposition: form-data; name="file"; filename="business-license.pdf"
+Content-Type: application/pdf
+
+< C:\path\to\business-license.pdf
+--KycDocumentBoundary--
+
+### Staff or customer uploads a KYC document for a customer
+POST {{baseUrl}}/api/v1/Customers/{{customerId}}/documents
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=CustomerKycBoundary
+
+--CustomerKycBoundary
+Content-Disposition: form-data; name="documentType"
+
+Business License
+--CustomerKycBoundary
+Content-Disposition: form-data; name="file"; filename="business-license.pdf"
+Content-Type: application/pdf
+
+< C:\path\to\business-license.pdf
+--CustomerKycBoundary--

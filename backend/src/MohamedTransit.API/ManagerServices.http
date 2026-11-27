@@ -1,0 +1,116 @@
+@baseUrl = http://localhost:5254
+@token = replace-with-manager-bearer-token
+@serviceId = 1
+@stageId = 1
+@documentId = 1
+
+### List services
+GET {{baseUrl}}/api/v1/Manager/services?search=SVC-2026&status=InProgress&mode=Multimodal&riskChannel=Green&sortBy=updatedAt&sortOrder=desc&page=1&pageSize=20
+Authorization: Bearer {{token}}
+
+### Export filtered services
+GET {{baseUrl}}/api/v1/Manager/services/export?status=InProgress&sortBy=sla&sortOrder=asc
+Authorization: Bearer {{token}}
+
+### Get complete service workspace
+GET {{baseUrl}}/api/v1/Manager/services/{{serviceId}}
+Authorization: Bearer {{token}}
+
+### Save a stage draft
+POST {{baseUrl}}/api/v1/Manager/services/{{serviceId}}/stages/{{stageId}}/update
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "action": "draft",
+  "stageStatus": "InProgress",
+  "riskChannel": "Yellow",
+  "stageNote": "Confirm the supporting records before proceeding."
+}
+
+### Advance a stage
+POST {{baseUrl}}/api/v1/Manager/services/{{serviceId}}/stages/{{stageId}}/update
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "action": "advance",
+  "stageStatus": "Completed",
+  "riskChannel": "Green",
+  "stageNote": "Documents verified; ready for the next stage."
+}
+
+### Block a stage
+POST {{baseUrl}}/api/v1/Manager/services/{{serviceId}}/stages/{{stageId}}/update
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "action": "block",
+  "stageStatus": "Blocked",
+  "riskChannel": "Red",
+  "stageNote": "Required evidence is incomplete."
+}
+
+### Upload a stage document (set a local PDF path)
+POST {{baseUrl}}/api/v1/Manager/services/{{serviceId}}/stages/{{stageId}}/documents
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=ManagerWorkspaceBoundary
+
+--ManagerWorkspaceBoundary
+Content-Disposition: form-data; name="documentType"
+
+Air waybill
+--ManagerWorkspaceBoundary
+Content-Disposition: form-data; name="file"; filename="air-waybill.pdf"
+Content-Type: application/pdf
+
+< C:\temp\air-waybill.pdf
+--ManagerWorkspaceBoundary--
+
+### Download a stage document
+GET {{baseUrl}}/api/v1/Manager/services/{{serviceId}}/stages/{{stageId}}/documents/{{documentId}}
+Authorization: Bearer {{token}}
+
+### List stage discussions
+GET {{baseUrl}}/api/v1/Manager/services/{{serviceId}}/stages/{{stageId}}/discussions
+Authorization: Bearer {{token}}
+
+### Add a stage discussion comment
+POST {{baseUrl}}/api/v1/Manager/services/{{serviceId}}/stages/{{stageId}}/discussions
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "message": "Please verify the consignee details against the invoice."
+}
+
+### Escalate a service
+POST {{baseUrl}}/api/v1/Manager/services/{{serviceId}}/escalate
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "reason": "The clearance deadline is at risk.",
+  "priority": "High"
+}
+
+### Notify the importer
+POST {{baseUrl}}/api/v1/Manager/services/{{serviceId}}/notify-importer
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "subject": "Additional document required",
+  "message": "Please upload the current temperature log."
+}
+
+### Message the importer
+POST {{baseUrl}}/api/v1/Manager/services/{{serviceId}}/message-importer
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "subject": "Service update",
+  "message": "Your consignment is now being processed."
+}

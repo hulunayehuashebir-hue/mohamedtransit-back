@@ -20,6 +20,8 @@ public class UploadDocumentCommand : IRequest<OperationResult<StageDocument>>
 
     public DocumentType DocumentType { get; set; }
 
+    public string? DocumentTypeLabel { get; set; }
+
     public string? Description { get; set; }
 
     public string? FilePath { get; set; }

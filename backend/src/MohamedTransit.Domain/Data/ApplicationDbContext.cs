@@ -47,7 +47,10 @@ public class ApplicationDbContext : DbContext
     public DbSet<CustomerDocument> CustomerDocuments { get; set; }
     public DbSet<ServiceMessage> ServiceMessages { get; set; }
     public DbSet<ServiceAssessment> ServiceAssessments => Set<ServiceAssessment>();
-    
+    public DbSet<AssessmentLog> AssessmentLogs => Set<AssessmentLog>();
+    public DbSet<StageDiscussion> StageDiscussions => Set<StageDiscussion>();
+    public DbSet<ServiceActivityLog> ServiceActivityLogs => Set<ServiceActivityLog>();
+    public DbSet<StageRequiredDocument> StageRequiredDocuments => Set<StageRequiredDocument>();
    
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -66,6 +69,17 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Shipment>()
     .Property(s => s.DeclaredValue)
     .HasColumnType("decimal(18,2)");
+        modelBuilder.Entity<Customer>()
+            .Property(customer => customer.VerificationStatus)
+            .HasDefaultValue("Pending");
+        modelBuilder.Entity<CustomerDocument>()
+            .Property(document => document.VerificationStatus)
+            .HasDefaultValue("Pending");
+        modelBuilder.Entity<ServiceStageExecution>()
+            .HasMany(stage => stage.RequiredDocuments)
+            .WithOne(document => document.ServiceStageExecution)
+            .HasForeignKey(document => document.ServiceStageExecutionId)
+            .OnDelete(DeleteBehavior.Cascade);
         // ==========================================
         // UserRole
         // ==========================================

@@ -1,0 +1,109 @@
+@baseUrl = http://localhost:5254/api/v1/CaseExecutor
+@token = replace-with-case-executor-jwt
+@serviceIdOrCode = SVC-2026-0448
+@stageId = 1
+@documentId = 1
+
+### Assigned services with filters
+GET {{baseUrl}}/services?search=SVC-2026-0448&status=InProgress&mode=Multimodal&riskChannel=Green&sortBy=updatedAt&sortOrder=desc&page=1&pageSize=20
+Authorization: Bearer {{token}}
+
+### Export filtered assigned services as CSV
+GET {{baseUrl}}/services/export?search=SVC-2026-0448&status=InProgress&mode=Multimodal&sortBy=eta&sortOrder=asc
+Authorization: Bearer {{token}}
+
+### Service workspace by numeric ID or service code
+GET {{baseUrl}}/services/{{serviceIdOrCode}}
+Authorization: Bearer {{token}}
+
+### Save draft, advance, or block a stage
+POST {{baseUrl}}/services/{{serviceIdOrCode}}/stages/{{stageId}}/update
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "stageId": {{stageId}},
+  "action": "draft",
+  "stageStatus": "InProgress",
+  "riskChannel": "Green",
+  "stageNote": "Documents checked; awaiting carrier confirmation."
+}
+
+### Upload stage document (replace the file reference with a local PDF/JPG/PNG/XLSX)
+POST {{baseUrl}}/services/{{serviceIdOrCode}}/stages/{{stageId}}/documents
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=CaseExecutorBoundary
+
+--CaseExecutorBoundary
+Content-Disposition: form-data; name="documentType"
+
+Commercial invoice
+--CaseExecutorBoundary
+Content-Disposition: form-data; name="file"; filename="commercial-invoice.pdf"
+Content-Type: application/pdf
+
+< ./commercial-invoice.pdf
+--CaseExecutorBoundary--
+
+### Download a stage document
+GET {{baseUrl}}/services/{{serviceIdOrCode}}/stages/{{stageId}}/documents/{{documentId}}
+Authorization: Bearer {{token}}
+
+### List stage discussions
+GET {{baseUrl}}/services/{{serviceIdOrCode}}/stages/{{stageId}}/discussions
+Authorization: Bearer {{token}}
+
+### Add a stage discussion
+POST {{baseUrl}}/services/{{serviceIdOrCode}}/stages/{{stageId}}/discussions
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "message": "The importer confirmed the invoice details."
+}
+
+### List assigned-service documents
+GET {{baseUrl}}/services/{{serviceIdOrCode}}/documents
+Authorization: Bearer {{token}}
+
+### Get risk and compliance guidance
+GET {{baseUrl}}/services/{{serviceIdOrCode}}/risk-compliance
+Authorization: Bearer {{token}}
+
+### Get service activity
+GET {{baseUrl}}/services/{{serviceIdOrCode}}/activity
+Authorization: Bearer {{token}}
+
+### Get service categories and workflow sizes
+GET {{baseUrl}}/ServiceCategories
+Authorization: Bearer {{token}}
+
+### Escalate an assigned service
+POST {{baseUrl}}/services/{{serviceIdOrCode}}/escalate
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "reason": "The shipment is at risk of missing its clearance deadline.",
+  "priority": "High"
+}
+
+### Notify importer (in-app notification and email when an address is available)
+POST {{baseUrl}}/services/{{serviceIdOrCode}}/notify-importer
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "subject": "Service update",
+  "message": "Your shipment has moved to the inspection stage."
+}
+
+### Message importer
+POST {{baseUrl}}/services/{{serviceIdOrCode}}/message-importer
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "subject": "Information request",
+  "message": "Please confirm the consignee contact details."
+}

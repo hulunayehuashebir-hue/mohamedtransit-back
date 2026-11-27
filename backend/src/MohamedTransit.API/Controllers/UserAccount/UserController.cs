@@ -36,8 +36,27 @@ public class UserController : BaseController
         _fileStorageService = fileStorageService;
     }
     [HttpPost("Create")]
-    public async Task<IActionResult> Create([FromForm] CreateUserCommand clientRequest)
+    public async Task<IActionResult> Create(
+        [FromForm] CreateUserCommand clientRequest,
+        CancellationToken cancellationToken)
     {
+        var normalizedUsername = clientRequest.Username.Trim().ToLowerInvariant();
+        var normalizedEmail = clientRequest.Email.Trim().ToLowerInvariant();
+        var accountExists = await _context.Users
+            .AsNoTracking()
+            .AnyAsync(
+                user => user.Username.Trim().ToLower() == normalizedUsername ||
+                        user.Email.Trim().ToLower() == normalizedEmail,
+                cancellationToken);
+        if (accountExists)
+        {
+            return Conflict(new
+            {
+                Error = true,
+                Message = "An account with this email or username already exists."
+            });
+        }
+
         if (clientRequest.ProfileFile == null || clientRequest.ProfileFile.Length == 0)
         {
             return BadRequest(new
@@ -61,7 +80,7 @@ public class UserController : BaseController
             });
         }
 
-        var result = await _mediator.Send(clientRequest);
+        var result = await _mediator.Send(clientRequest, cancellationToken);
 
         if (result == null) return BadRequest("An unexpected error occurred.");
         if (result.IsError)

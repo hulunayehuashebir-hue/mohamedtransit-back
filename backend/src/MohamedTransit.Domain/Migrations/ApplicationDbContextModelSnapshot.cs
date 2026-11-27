@@ -17,6 +17,64 @@ namespace MohamedTransit.Domain.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.0");
 
+            modelBuilder.Entity("MohamedTransit.Domain.Entities.AssessmentLog", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ActorName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("ActorUserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreateAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("CustomerId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("DocumentId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RecordStatus")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("ServiceId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("StageId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("TargetType")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("AssessmentLogs");
+                });
+
             modelBuilder.Entity("MohamedTransit.Domain.Entities.Customer", b =>
                 {
                     b.Property<long>("Id")
@@ -78,6 +136,9 @@ namespace MohamedTransit.Domain.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("PreviousReviewNote")
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("RecordStatus")
                         .HasColumnType("INTEGER");
 
@@ -100,6 +161,12 @@ namespace MohamedTransit.Domain.Migrations
 
                     b.Property<string>("VerificationNotes")
                         .HasColumnType("TEXT");
+
+                    b.Property<string>("VerificationStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("Pending");
 
                     b.Property<DateTime?>("VerifiedAt")
                         .HasColumnType("TEXT");
@@ -178,6 +245,15 @@ namespace MohamedTransit.Domain.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("VerificationNotes")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("VerificationStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("Pending");
+
+                    b.Property<DateTime?>("VerifiedAt")
                         .HasColumnType("TEXT");
 
                     b.Property<long?>("VerifiedByUserId")
@@ -369,6 +445,50 @@ namespace MohamedTransit.Domain.Migrations
                     b.ToTable("Services");
                 });
 
+            modelBuilder.Entity("MohamedTransit.Domain.Entities.ServiceActivityLog", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ActionTitle")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ActorName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("ActorUserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreateAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RecordStatus")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ServiceId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("StageId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ServiceActivityLogs");
+                });
+
             modelBuilder.Entity("MohamedTransit.Domain.Entities.ServiceAssessment", b =>
                 {
                     b.Property<long>("Id")
@@ -426,6 +546,9 @@ namespace MohamedTransit.Domain.Migrations
 
                     b.Property<int>("DocumentType")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("DocumentTypeLabel")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("FileExtension")
                         .IsRequired()
@@ -572,6 +695,12 @@ namespace MohamedTransit.Domain.Migrations
                     b.Property<DateTime?>("CompletedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("CompletedByName")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("CompletedByUserId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime>("CreateAt")
                         .HasColumnType("TEXT");
 
@@ -590,6 +719,10 @@ namespace MohamedTransit.Domain.Migrations
                     b.Property<bool>("RequiresCustomerAction")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("RiskChannel")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("RiskNotes")
                         .HasColumnType("TEXT");
 
@@ -602,6 +735,12 @@ namespace MohamedTransit.Domain.Migrations
                     b.Property<int>("Stage")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("StageNote")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("StageNumber")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int?>("StageSpot")
                         .HasColumnType("INTEGER");
 
@@ -610,6 +749,9 @@ namespace MohamedTransit.Domain.Migrations
 
                     b.Property<int>("Status")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("SummaryNote")
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("TEXT");
@@ -645,7 +787,18 @@ namespace MohamedTransit.Domain.Migrations
                     b.Property<string>("AssignmentNotes")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("CarrierOrVessel")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("CompletionPercentage")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ConsignmentDetails")
+                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<string>("CountryOfOrigin")
@@ -674,8 +827,19 @@ namespace MohamedTransit.Domain.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("ETA")
+                        .HasColumnType("TEXT");
+
                     b.Property<long>("ImporterId")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("LogisticsRouteSummary")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ManagerRiskChannel")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Mode")
                         .IsRequired()
@@ -689,6 +853,10 @@ namespace MohamedTransit.Domain.Migrations
                     b.Property<int>("RecordStatus")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("ReferenceNumber")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<int?>("RiskLevel")
                         .HasColumnType("INTEGER");
 
@@ -696,8 +864,15 @@ namespace MohamedTransit.Domain.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ServiceCode")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<int?>("ServiceType")
                         .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("SlaDeadline")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -707,12 +882,20 @@ namespace MohamedTransit.Domain.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("TrackingNumber")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("WorkflowStatus")
+                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -764,6 +947,44 @@ namespace MohamedTransit.Domain.Migrations
                     b.ToTable("StageComments");
                 });
 
+            modelBuilder.Entity("MohamedTransit.Domain.Entities.StageDiscussion", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("AuthorName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AuthorRole")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("AuthorUserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RecordStatus")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ServiceId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("StageId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("StageDiscussions");
+                });
+
             modelBuilder.Entity("MohamedTransit.Domain.Entities.StageDocument", b =>
                 {
                     b.Property<long>("Id")
@@ -778,6 +999,9 @@ namespace MohamedTransit.Domain.Migrations
 
                     b.Property<int>("DocumentType")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("DocumentTypeLabel")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("FileExtension")
                         .IsRequired()
@@ -838,6 +1062,35 @@ namespace MohamedTransit.Domain.Migrations
                     b.HasIndex("VerifiedByUserId");
 
                     b.ToTable("StageDocuments");
+                });
+
+            modelBuilder.Entity("MohamedTransit.Domain.Entities.StageRequiredDocument", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreateAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DocumentType")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RecordStatus")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ServiceStageExecutionId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ServiceStageExecutionId");
+
+                    b.ToTable("StageRequiredDocuments");
                 });
 
             modelBuilder.Entity("MohamedTransit.Domain.Entities.StageTransport", b =>
@@ -1224,6 +1477,17 @@ namespace MohamedTransit.Domain.Migrations
                     b.Navigation("VerifiedByUser");
                 });
 
+            modelBuilder.Entity("MohamedTransit.Domain.Entities.StageRequiredDocument", b =>
+                {
+                    b.HasOne("MohamedTransit.Domain.Entities.ServiceStageExecution", "ServiceStageExecution")
+                        .WithMany("RequiredDocuments")
+                        .HasForeignKey("ServiceStageExecutionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ServiceStageExecution");
+                });
+
             modelBuilder.Entity("MohamedTransit.Domain.Entities.UserRole", b =>
                 {
                     b.HasOne("MohamedTransit.Domain.Entities.Role", "Role")
@@ -1258,6 +1522,8 @@ namespace MohamedTransit.Domain.Migrations
             modelBuilder.Entity("MohamedTransit.Domain.Entities.ServiceStageExecution", b =>
                 {
                     b.Navigation("Documents");
+
+                    b.Navigation("RequiredDocuments");
 
                     b.Navigation("StageComments");
                 });

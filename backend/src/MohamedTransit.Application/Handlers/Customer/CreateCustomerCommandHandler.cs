@@ -49,32 +49,49 @@ internal class CreateCustomerCommandHandler : IRequestHandler<CreateCustomerComm
       
         var existingCustomer = await _context.Customers
             .FirstOrDefaultAsync(x => x.UserId == request.UserId, cancellationToken);
-        if (existingCustomer is not null)
+        if (existingCustomer is not null && existingCustomer.IsRegistrationComplete())
         {
             result.AddError(ErrorCode.RecordFound, "Customer profile already exists for this user.");
             return result;
         }
 
-       
-        var customer = MohamedTransit.Domain.Entities.Customer.Create(
-            request.BusinessName,
-            request.TINNumber,
-            request.BusinessLicense,
-            request.BusinessAddress,
-            request.City,
-            request.State,
-            request.PostalCode,
-            request.ContactPerson,
-            request.ContactPhone,
-            request.ContactEmail,
-            request.BusinessType,
-            request.ImportLicense,
-            request.ImportLicenseExpiry,
-            request.UserId,
-            request.CreatedByDataEncoderId
-        );
-
-        _context.Customers.Add(customer);
+        if (existingCustomer is null)
+        {
+            existingCustomer = MohamedTransit.Domain.Entities.Customer.Create(
+                request.BusinessName,
+                request.TINNumber,
+                request.BusinessLicense,
+                request.BusinessAddress,
+                request.City,
+                request.State,
+                request.PostalCode,
+                request.ContactPerson,
+                request.ContactPhone,
+                request.ContactEmail,
+                request.BusinessType,
+                request.ImportLicense,
+                request.ImportLicenseExpiry,
+                request.UserId,
+                request.CreatedByDataEncoderId);
+            _context.Customers.Add(existingCustomer);
+        }
+        else
+        {
+            existingCustomer.UpdateRegistrationDetails(
+                SubmittedOrExisting(request.BusinessName, existingCustomer.BusinessName),
+                SubmittedOrExisting(request.TINNumber, existingCustomer.TINNumber),
+                SubmittedOrExisting(request.BusinessLicense, existingCustomer.BusinessLicense),
+                SubmittedOrExisting(request.BusinessAddress, existingCustomer.BusinessAddress),
+                SubmittedOrExisting(request.City, existingCustomer.City),
+                SubmittedOrExisting(request.State, existingCustomer.State),
+                SubmittedOrExisting(request.PostalCode, existingCustomer.PostalCode),
+                SubmittedOrExisting(request.ContactPerson, existingCustomer.ContactPerson),
+                SubmittedOrExisting(request.ContactPhone, existingCustomer.ContactPhone),
+                SubmittedOrExisting(request.ContactEmail, existingCustomer.ContactEmail),
+                SubmittedOrExisting(request.BusinessType, existingCustomer.BusinessType),
+                SubmittedOrExisting(request.ImportLicense, existingCustomer.ImportLicense),
+                request.ImportLicenseExpiry ?? existingCustomer.ImportLicenseExpiry);
+        }
         await _context.SaveChangesAsync(cancellationToken);
 
         var updatedUser = await _context.Users
@@ -109,4 +126,7 @@ internal class CreateCustomerCommandHandler : IRequestHandler<CreateCustomerComm
         var userNameClaim = claims?.FirstOrDefault(c => c.Type == "userName");
         return userNameClaim?.Value;
     }
+
+    private static string SubmittedOrExisting(string submitted, string existing) =>
+        string.IsNullOrWhiteSpace(submitted) ? existing : submitted.Trim();
 }

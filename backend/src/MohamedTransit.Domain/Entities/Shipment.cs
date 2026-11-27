@@ -6,6 +6,17 @@ public class Shipment : BaseEntity
 {
     // Public Properties ከ Private Set ጋር (Encapsulation)
     public string TrackingNumber { get; private set; } = string.Empty;
+    public string ServiceCode { get; private set; } = string.Empty;
+    public string ReferenceNumber { get; private set; } = string.Empty;
+    public string Title { get; private set; } = string.Empty;
+    public string WorkflowStatus { get; private set; } = string.Empty;
+    public string ManagerRiskChannel { get; private set; } = string.Empty;
+    public DateTime? ETA { get; private set; }
+    public DateTime? SlaDeadline { get; private set; }
+    public string CarrierOrVessel { get; private set; } = string.Empty;
+    public string LogisticsRouteSummary { get; private set; } = string.Empty;
+    public string ConsignmentDetails { get; private set; } = string.Empty;
+    public int CompletionPercentage { get; private set; }
     public long ImporterId { get; private set; }
 
     // Navigation Property ለ EF Core
@@ -167,6 +178,65 @@ public class Shipment : BaseEntity
     public void UpdateRiskLevel(RiskLevel? riskLevel)
     {
         RiskLevel = riskLevel;
+        SetUpdated();
+    }
+
+    public void UpdateAssessorRiskChannel(RiskLevel riskLevel)
+    {
+        ManagerRiskChannel = riskLevel.ToString();
+        RiskLevel = riskLevel;
+        SetUpdated();
+    }
+
+    public void UpdateManagerWorkspace(
+        string serviceCode,
+        string referenceNumber,
+        string title,
+        string workflowStatus,
+        string riskChannel,
+        DateTime? eta,
+        DateTime? slaDeadline,
+        string carrierOrVessel,
+        string logisticsRouteSummary,
+        string consignmentDetails,
+        int completionPercentage)
+    {
+        ServiceCode = serviceCode;
+        ReferenceNumber = referenceNumber;
+        Title = title;
+        WorkflowStatus = workflowStatus;
+        ManagerRiskChannel = riskChannel;
+        ETA = eta;
+        SlaDeadline = slaDeadline;
+        CarrierOrVessel = carrierOrVessel;
+        LogisticsRouteSummary = logisticsRouteSummary;
+        ConsignmentDetails = consignmentDetails;
+        CompletionPercentage = Math.Clamp(completionPercentage, 0, 100);
+
+        RiskLevel = riskChannel.ToLowerInvariant() switch
+        {
+            "green" => MohamedTransit.Domain.Common.RiskLevel.Green,
+            "yellow" => MohamedTransit.Domain.Common.RiskLevel.Yellow,
+            "blue" => MohamedTransit.Domain.Common.RiskLevel.Blue,
+            "red" => MohamedTransit.Domain.Common.RiskLevel.Red,
+            _ => RiskLevel
+        };
+        Status = workflowStatus switch
+        {
+            "Completed" => ShipmentStatus.Completed,
+            "Blocked" => ShipmentStatus.InProgress,
+            "Pending" => ShipmentStatus.Submitted,
+            _ => ShipmentStatus.InProgress
+        };
+        SetUpdated();
+    }
+
+    public void UpdateDataEncoderWorkspace(string serviceCode, string referenceNumber, string title)
+    {
+        ServiceCode = serviceCode;
+        ReferenceNumber = referenceNumber;
+        Title = title;
+        WorkflowStatus = Status.ToString();
         SetUpdated();
     }
 }

@@ -17,9 +17,11 @@ public class CustomerDetail
     public string ImportLicense { get; private set; }
     public DateTime? ImportLicenseExpiry { get; private set; }
     public bool IsVerified { get; private set; }
+    public string VerificationStatus { get; private set; }
     public DateTime? VerifiedAt { get; private set; }
     public long? VerifiedByUserId { get; private set; }
     public string? VerificationNotes { get; private set; }
+    public string? PreviousReviewNote { get; private set; }
     public int ActiveCases { get; set; }
     public DateTime RegisteredAt { get; set; }
 

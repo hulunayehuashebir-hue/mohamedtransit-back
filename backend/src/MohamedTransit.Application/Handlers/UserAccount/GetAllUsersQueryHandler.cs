@@ -65,6 +65,27 @@ internal class GetAllUsersQueryHandler : IRequestHandler<GetAllUsersQuery, Opera
 
             var users = await query.ToListAsync(cancellationToken);
 
+            var isDataEncoder = userId > 0 && await _context.UserRoles
+                .AsNoTracking()
+                .AnyAsync(userRole =>
+                    userRole.UserId == userId &&
+                    userRole.Role.RecordStatus == RecordStatus.Active &&
+                    userRole.Role.Name.ToLower() == "dataencoder",
+                    cancellationToken);
+            if (isDataEncoder)
+            {
+                var userIds = users.Select(user => user.Id).ToArray();
+                var completedProfileUserIds = (await _context.Customers
+                        .AsNoTracking()
+                        .Where(customer => customer.UserId.HasValue &&
+                                           userIds.Contains(customer.UserId.Value))
+                        .ToListAsync(cancellationToken))
+                    .Where(customer => customer.IsRegistrationComplete())
+                    .Select(customer => customer.UserId!.Value)
+                    .ToHashSet();
+                users = users.Where(user => !completedProfileUserIds.Contains(user.Id)).ToList();
+            }
+
             // ዳታ ባይኖርም እንኳን ባዶ List Payload ላይ አድርጎ 200 OK ይመልሳል
             result.Payload = users ?? new List<User>();
             result.Message = users?.Any() == true ? "Operation success" : "No users found";

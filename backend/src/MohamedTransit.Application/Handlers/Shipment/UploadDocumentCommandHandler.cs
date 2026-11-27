@@ -86,6 +86,17 @@ internal class UploadDocumentCommandHandler : IRequestHandler<UploadDocumentComm
 
         // 6. ዳታቤዝ ውስጥ መመዝገብ
         await _context.StageDocuments.AddAsync(document, cancellationToken);
+        var actorName = await _context.Users
+            .Where(user => user.Id == request.UploadedByUserId.Value)
+            .Select(user => user.FirstName + " " + user.LastName)
+            .FirstAsync(cancellationToken);
+        _context.ServiceActivityLogs.Add(ServiceActivityLog.Create(
+            request.ShipmentId,
+            request.StageId,
+            "Stage document uploaded",
+            $"{document.DocumentType} uploaded: {originalFileName}",
+            request.UploadedByUserId.Value,
+            actorName.Trim()));
         await _context.SaveChangesAsync(cancellationToken);
 
         // 7. Result መመለስ

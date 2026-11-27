@@ -78,7 +78,10 @@ public enum DocumentType
     ArrivalPhoto = 7,
     StoreReceipt = 8,
     LegalDocument = 9,
-    Other = 10
+    Other = 10,
+    BusinessLicense = 11,
+    ImportLicense = 12,
+    TINCertificate = 13
 }
 
 public enum RiskLevel
@@ -124,7 +127,8 @@ public enum StageStatus
     InProgress = 3,
     Completed = 4,
     Blocked = 5,
-    NeedsReview = 6
+    NeedsReview = 6,
+    RequiresCustomerAction = 7
 }
 public enum ServiceType
 {

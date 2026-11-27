@@ -774,9 +774,26 @@ public async Task<IActionResult> GetStageDocuments(long serviceId)
 
         var result = await _mediator.Send(command, cancellationToken);
 
-        return result.IsError
-            ? HandleErrorResponse(result.Errors)
-            : HandleSuccessResponse(new
+        if (result.IsError)
+            return HandleErrorResponse(result.Errors);
+
+        var executorName = await _context.Users
+            .Where(user => user.Id == request.CaseExecutorId)
+            .Select(user => user.FirstName + " " + user.LastName)
+            .FirstAsync(cancellationToken);
+        var managerName = await _context.Users
+            .Where(user => user.Id == currentUserId.Value)
+            .Select(user => user.FirstName + " " + user.LastName)
+            .FirstAsync(cancellationToken);
+        _context.ServiceActivityLogs.Add(ServiceActivityLog.Create(
+            request.ShipmentId,
+            null,
+            "Executor assigned",
+            $"{executorName.Trim()} assigned as Case Executor.",
+            currentUserId.Value,
+            managerName.Trim()));
+        await _context.SaveChangesAsync(cancellationToken);
+        return HandleSuccessResponse(new
             {
                 ShipmentId = request.ShipmentId,
                 CaseExecutorId = request.CaseExecutorId,
@@ -1088,6 +1105,17 @@ public async Task<IActionResult> GetStageDocuments(long serviceId)
                 isUrgent: true));
         }
 
+        var actorName = await _context.Users
+            .Where(user => user.Id == currentUserId.Value)
+            .Select(user => user.FirstName + " " + user.LastName)
+            .FirstAsync(cancellationToken);
+        _context.ServiceActivityLogs.Add(ServiceActivityLog.Create(
+            service.Id,
+            null,
+            "Service escalated",
+            message,
+            currentUserId.Value,
+            actorName.Trim()));
         await _context.SaveChangesAsync(cancellationToken);
         return HandleSuccessResponse(new
         {
@@ -1146,6 +1174,17 @@ public async Task<IActionResult> GetStageDocuments(long serviceId)
             service.Id,
             isUrgent: request.IsUrgent));
 
+        var actorName = await _context.Users
+            .Where(user => user.Id == currentUserId.Value)
+            .Select(user => user.FirstName + " " + user.LastName)
+            .FirstAsync(cancellationToken);
+        _context.ServiceActivityLogs.Add(ServiceActivityLog.Create(
+            service.Id,
+            null,
+            "Importer notified",
+            subject,
+            currentUserId.Value,
+            actorName.Trim()));
         await _context.SaveChangesAsync(cancellationToken);
         return HandleSuccessResponse(new
         {
@@ -1304,6 +1343,17 @@ public async Task<IActionResult> GetStageDocuments(long serviceId)
             request.StageId,
             currentUserId.Value);
         _context.StageComments.Add(comment);
+        var actorName = await _context.Users
+            .Where(user => user.Id == currentUserId.Value)
+            .Select(user => user.FirstName + " " + user.LastName)
+            .FirstAsync(cancellationToken);
+        _context.ServiceActivityLogs.Add(ServiceActivityLog.Create(
+            request.ServiceId,
+            request.StageId,
+            "Stage discussion added",
+            request.Comment.Trim(),
+            currentUserId.Value,
+            actorName.Trim()));
         await _context.SaveChangesAsync(cancellationToken);
 
         return HandleSuccessResponse(new

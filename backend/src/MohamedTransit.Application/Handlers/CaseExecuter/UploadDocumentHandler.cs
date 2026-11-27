@@ -2,6 +2,7 @@
 
 using MediatR;
 
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 
 using MohamedTransit.Application.Commands;
@@ -18,13 +19,19 @@ namespace MohamedTransit.Application.Handlers
     {
         private readonly ApplicationDbContext _context;
         private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly IWebHostEnvironment _environment;
         private ISession _session => _httpContextAccessor.HttpContext.Session;
         private readonly TokenHandlerService _tokenHandlerService;
 
-        public UploadDocumentHandler(ApplicationDbContext context, IHttpContextAccessor httpContextAccessor, TokenHandlerService tokenHandlerService)
+        public UploadDocumentHandler(
+            ApplicationDbContext context,
+            IHttpContextAccessor httpContextAccessor,
+            IWebHostEnvironment environment,
+            TokenHandlerService tokenHandlerService)
         {
             _context = context;
             _httpContextAccessor = httpContextAccessor;
+            _environment = environment;
             _tokenHandlerService = tokenHandlerService;
         }
 
@@ -73,17 +80,24 @@ namespace MohamedTransit.Application.Handlers
                 }
 
                 // Save file to disk (can be replaced with cloud storage)
-                var uploadsFolder = Path.Combine("Uploads", DateTime.UtcNow.ToString("yyyyMMdd"));
+                var uploadsFolder = Path.Combine(
+                    _environment.ContentRootPath,
+                    "App_Data",
+                    "CaseExecutorStageDocuments",
+                    DateTime.UtcNow.ToString("yyyyMMdd"));
                 Directory.CreateDirectory(uploadsFolder);
 
                 var originalFileName = Path.GetFileName(request.File.FileName);
                 var uniqueFileName = $"{Guid.NewGuid()}_{originalFileName}";
-                var filePath = Path.Combine(uploadsFolder, uniqueFileName);
+                var fullPath = Path.Combine(uploadsFolder, uniqueFileName);
 
-                using (var stream = new FileStream(filePath, FileMode.Create))
+                await using (var stream = new FileStream(
+                    fullPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, useAsync: true))
                 {
                     await request.File.CopyToAsync(stream, cancellationToken);
                 }
+                var filePath = Path.GetRelativePath(_environment.ContentRootPath, fullPath)
+                    .Replace('\\', '/');
 
                 // Create StageDocument using factory method
                 var document = StageDocument.Create(
@@ -96,10 +110,22 @@ namespace MohamedTransit.Application.Handlers
                     documentType: request.DocumentType,
                     serviceStageId: request.StageId,
                     uploadedByUserId: userId,
-                    description: request.Description
+                    description: request.Description,
+                    documentTypeLabel: request.DocumentTypeLabel
                 );
 
                 _context.StageDocuments.Add(document);
+                var actorName = await _context.Users
+                    .Where(user => user.Id == userId)
+                    .Select(user => (user.FirstName + " " + user.LastName).Trim())
+                    .FirstAsync(cancellationToken);
+                _context.ServiceActivityLogs.Add(ServiceActivityLog.Create(
+                    request.ShipmentId,
+                    request.StageId,
+                    "Stage document uploaded",
+                    $"{document.DocumentTypeLabel ?? document.DocumentType.ToString()} uploaded: {originalFileName}",
+                    userId,
+                    actorName));
                 await _context.SaveChangesAsync(cancellationToken);
 
                 result.Payload = document;

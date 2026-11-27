@@ -4,5 +4,6 @@ public class VerifyCustomerDocumentDto
 {
     public long DocumentId { get; set; }
     public bool IsVerified { get; set; }
+    public string? Decision { get; set; }
     public string? Notes { get; set; }
 }
